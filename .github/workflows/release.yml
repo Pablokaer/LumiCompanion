@@ -1,0 +1,121 @@
+name: Release
+
+# Every push to main: check the code, build installers for Windows, macOS and Linux,
+# and publish them as a GitHub Release named after the version in package.json (e.g. v0.1.0).
+# Pushing to main again with the same version replaces that release; bump the version for a new one.
+# Run it by hand from the Actions tab with "Run workflow".
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  build:
+    needs: check
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+            builder: --win
+          - os: macos-latest
+            name: macos
+            builder: --mac --x64 --arm64
+          - os: ubuntu-latest
+            name: linux
+            builder: --linux
+    runs-on: ${{ matrix.os }}
+    env:
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Require the Google OAuth secrets
+        shell: bash
+        run: |
+          if [ -z "$GOOGLE_CLIENT_ID" ] || [ -z "$GOOGLE_CLIENT_SECRET" ]; then
+            echo "::error::Add the repository secrets GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET (Settings > Secrets and variables > Actions). The installers need them to sign in to Google."
+            exit 1
+          fi
+
+      - name: Build app and create google-oauth.json
+        run: |
+          npm run build
+          npm run oauth:json
+
+      - name: Package installers
+        run: npx electron-builder ${{ matrix.builder }} --publish never
+        env:
+          # No signing certificates: skip Apple/Windows identity discovery.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: List installers
+        shell: bash
+        run: ls -la release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lumi-${{ matrix.name }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+            release/*.deb
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-release
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v$VERSION"
+          ls -la dist-release
+          # Replace the release for this version (and its tag) so it points at this commit.
+          gh release delete "$TAG" --cleanup-tag --yes || true
+          gh release create "$TAG" dist-release/* \
+            --target "$GITHUB_SHA" \
+            --title "Lumi $VERSION" \
+            --generate-notes \
+            --notes "Unsigned builds: Windows shows a SmartScreen warning (More info > Run anyway) and macOS needs right-click > Open. Lumi also needs Ollama installed locally."
