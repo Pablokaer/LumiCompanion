@@ -1,5 +1,6 @@
 import type { MascotAction } from './behavior';
 import type { Reaction } from './interaction';
+import type { NoticeTone } from '../shared/notices';
 
 export type Mood = 'idle' | 'happy' | 'alert' | 'thinking' | 'sleepy';
 
@@ -21,8 +22,8 @@ export const GRIN_ACTIONS: MascotAction[] = ['smile', 'hop', 'wave', 'spin', 'wi
  * only for a moment of delight (cheering) or a yawn, and the closed sleepy eyes only when she is
  * actually asleep.
  */
-export function faceFor(opts: { mood: Mood; sleeping: boolean; dancing: boolean; action: MascotAction; reaction?: Reaction }): Face {
-  const { mood, sleeping, dancing, action, reaction = 'none' } = opts;
+export function faceFor(opts: { mood: Mood; sleeping: boolean; dancing: boolean; action: MascotAction; reaction?: Reaction; tone?: NoticeTone }): Face {
+  const { mood, sleeping, dancing, action, reaction = 'none', tone } = opts;
   if (sleeping) return { eyes: 'sleepy', mouth: 'sleepy' };
   if (mood === 'alert' || mood === 'thinking' || mood === 'sleepy') return { eyes: mood, mouth: mood };
   // reactions to being petted, teased or stared at
@@ -30,6 +31,9 @@ export function faceFor(opts: { mood: Mood; sleeping: boolean; dancing: boolean;
   if (reaction === 'purr') return { eyes: 'happy', mouth: 'purr' };
   if (reaction === 'shy') return { eyes: 'idle', mouth: 'shy' };
   if (reaction === 'bite') return { eyes: 'idle', mouth: 'chomp', brows: true };
+  // how she feels about something she just told you (low battery, no internet, a tip…)
+  if (tone === 'worried') return { eyes: 'idle', mouth: 'shy' };
+  if (tone === 'happy') return { eyes: 'idle', mouth: 'happy' };
   if (action === 'cheer') return { eyes: 'happy', mouth: 'happy' };
   if (mood === 'happy' || dancing || GRIN_ACTIONS.includes(action)) return { eyes: 'idle', mouth: 'happy' };
   return { eyes: 'idle', mouth: 'idle' };

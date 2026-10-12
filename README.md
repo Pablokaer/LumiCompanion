@@ -21,7 +21,7 @@ Lumi is a little blue star that lives on your Windows or Mac desktop. It watches
 - **Email → event:** "Make event" looks for a meeting or deadline in an email and opens a prefilled form. You confirm before anything is created.
 - **Add events from the calendar:** select a day (or double-click it) and use "Add event".
 - **Voice input:** click the microphone in Chat and speak. Transcription runs locally with Whisper (see below).
-- **Shapes, skins and accessories:** pick her body from four star shapes (star, chubby, sparkle, six-point) or space objects (ringed planet, Earth, Moon, Sun, comet), five colour presets or **any colour you like** with a Photoshop-style picker (they re-theme the whole app), and mix and match 17 accessories by spot: **head** (party hat, crown, wizard hat, top hat, halo, flower, cat ears, antenna, bow, space helmet), **ears** (headphones), **eyes** (glasses, sunglasses, monocle), **neck** (scarf, bow tie) and **face** (mustache). One accessory per spot, different spots combine. Settings → Appearance has a live preview.
+- **Shapes, skins and accessories:** pick her body from four star shapes (star, chubby, sparkle, six-point) or space objects (ringed planet, Earth, Moon, Sun, comet), five colour presets or **any colour you like** with a Photoshop-style picker (they re-theme the whole app), and mix and match 22 accessories by spot: **head** (party hat, crown, wizard hat, top hat, halo, flower, cat ears, antenna, bow, space helmet, Santa hat, witch hat, beanie), **ears** (headphones), **eyes** (glasses, sunglasses, monocle), **neck** (scarf, bow tie) **face** (mustache) and **prop** (umbrella). One accessory per spot, different spots combine. Settings → Appearance has a live preview.
 - **Models per task:** use a small model for email triage and a larger one for writing. Settings → Local AI.
 - **Ollama starts itself:** if it is installed but stopped, Lumi launches it (can be turned off).
 - **Answer assignments into a Google Doc:** attach a `.docx`, `.pdf`, `.txt` or `.md` file of questions in Chat. Lumi finds the questions, researches real sources, writes academic answers and saves them as a Google Doc with in-text citations and a reference list in ABNT or APA (see below).
@@ -95,7 +95,7 @@ If Ollama is off, Calendar, Gmail, reminders and the heuristic email ranking sti
 - **Platform notes:** works on Windows out of the box. macOS 13+ may ask for Screen Recording permission (Electron's system-audio capture requires it) and Linux needs PulseAudio/PipeWire. If capture is not possible the status in Settings says so and everything else keeps working.
 - With "reduce motion" enabled in the OS, the spontaneous actions and dance are skipped.
 
-Browser preview (`npm run preview:ui`) extras: `?gallery=1` shows every shape and accessory (add `&skin=sunset` or `&mood=happy`), `?shape=planet&acc=wizard,sunglasses` previews a look, `?skin=custom&color=22c55e` a custom colour, `?update=ready|available|downloading|error` the update banner and card, and for inspecting the animations: `?sleep=1` (start asleep), `?mouse=200,60` (pin the cursor position the eyes look at), `?reaction=giggle|shy|purr|bite` (pin a mouse reaction), `?music=1` (fake 120 BPM music) and `?action=wave` (pin one action: `smile`, `hop`, `look`, `wave`, `spin`, `wiggle`, `stretch`, `twinkle`, `hum`, `peek`, `cheer`, `wake`).
+Browser preview (`npm run preview:ui`) extras: `?gallery=1` shows every shape and accessory (add `&skin=sunset` or `&mood=happy`), `?shape=planet&acc=wizard,sunglasses` previews a look, `?skin=custom&color=22c55e` a custom colour, `?update=ready|available|downloading|error` the update banner and card, and for inspecting the animations: `?sleep=1` (start asleep), `?mouse=200,60` (pin the cursor position the eyes look at), `?reaction=giggle|shy|purr|bite` (pin a mouse reaction), `?music=1` (fake 120 BPM music) and `?action=wave` (pin one action: `smile`, `hop`, `look`, `wave`, `spin`, `wiggle`, `stretch`, `twinkle`, `hum`, `peek`, `cheer`, `wake`). Also: `?dnd=fullscreen|meeting|manual` (quiet mode), `?weather=rain|snow|hot|cold|fog|thunder|clear|night|off` and `?lat=-23` (weather and hemisphere), `?today=2026-12-24` (pretend it is another date, for seasonal looks), `?system=lock-screen|unlock-screen|suspend|resume|on-ac|on-battery` (a system reaction) and `#quick` for the quick-capture window.
 
 ## Custom colour
 
@@ -140,6 +140,32 @@ How it works:
 
 Limitations: a small local model can still write weak or wrong prose, and OpenAlex metadata is sometimes imprecise (for example publication years), so always review the text and the references before submitting. Scanned PDFs are not supported (no OCR). Search queries are sent to OpenAlex, so this feature is not fully offline.
 
+## Staying out of your way, and noticing the world
+
+### Do not disturb
+Lumi goes quiet by itself, and you can ask her to. While quiet she shows no reminder pop-ups, no notifications, no tips and no dancing or random actions; her speech bubble just says "Quiet mode". Reminders that come due are **held and shown as one "While you were busy" summary** when the quiet ends.
+
+- **Full-screen apps** (games, videos, presentations): detected on **Windows only**, through the system's "user notification state". Optionally the widget also hides itself while a full-screen app is open. On macOS and Linux this detection is not available, so use the manual pause or meetings.
+- **Meetings:** quiet while a calendar event with a start time is running (off by default).
+- **Manual pause:** tray menu → "Do not disturb" (1 hour, until tomorrow morning, or off), or Settings → Do not disturb.
+
+### Join button for meetings
+Events remember their video-call link (Google Meet, Zoom, Teams, Webex, Whereby, GoTo, BlueJeans, Jitsi, Chime and Around links found in the event's conference data, location or description). A **Join** button appears on the reminder, in the widget's next-event chip (from 15 minutes before until the event ends), in the Today tab and in the day agenda. Clicking a reminder notification also opens the call. Only `https` links to those services (and `*.google.com`) are ever opened.
+
+### Quick capture
+Press **Ctrl/Cmd + Shift + Space** from anywhere (changeable in Settings → Quick capture), type something like *"lunch with Ana tomorrow 1pm"* and review the filled-in form before saving to Google Calendar. English and Portuguese are understood by built-in rules (weekdays, "tomorrow", dates such as `25/12` or `Dec 25`, times such as `3pm`, `15:30` or `at 3 pm`, durations such as `for 2h`). If the rules find nothing and Ollama is running, the local AI gets a try; otherwise you just fill the form by hand. Press Esc to close.
+
+### Weather and seasons
+Lumi shows the weather where you are and dresses for it. **Where you are:** your approximate location is guessed from your IP address (ipwho.is, falling back to ipapi.co), or you type a city in Settings → Weather and seasons (looked up with Open-Meteo's geocoding). **The weather** comes from Open-Meteo (free, no account) and refreshes every 30 minutes; it also appears in the morning briefing and the Today tab, in °C or °F. Only your approximate coordinates or city name leave your computer, and you can turn the whole feature off.
+
+With "Dress for the weather and season" on, she grabs an **umbrella** in the rain, a **scarf** or **beanie** in the cold, **sunglasses** in strong sun, and wears a **Santa hat** (Dec 15–31), **witch hat** (Oct 25–31) or **party hat** (New Year) on holidays, with rain, snow, falling leaves (autumn) or petals (spring) drifting behind her. The seasons follow your hemisphere. Accessories you picked yourself are never replaced.
+
+### Reacting to the computer
+She notices low battery (20% and 10%), plugging in, going offline or back online, headphones or speakers being connected, and your screen locking (she dozes off and wakes happily when you return). Each reaction is a short line, a matching mood and sometimes a small action. Turn it off in Settings → Tips and system reactions.
+
+### Gentle tips
+Occasional, kind nudges: drink water, stretch, rest your eyes, check your posture, go to bed when it is very late, and take an umbrella when rain is coming and an event is soon. They respect cooldowns and a minimum gap between tips, only show when you have been active, and never appear during quiet mode, focus sessions, sleep or reminders. Frequency (rarely / normal / often) is in Settings.
+
 ## Using Lumi
 
 | Action | How |
@@ -158,6 +184,9 @@ Limitations: a small local model can still write weak or wrong prose, and OpenAl
 | Change her shape, colour or accessories | Settings → Appearance |
 | Turn off random actions, sleeping or dancing | Settings → Life |
 | Preview the morning briefing | Settings → Morning briefing → Preview now |
+| Add an event from anywhere | **Ctrl/Cmd + Shift + Space**, then type a sentence |
+| Pause everything for a while | Tray menu → Do not disturb, or Settings → Do not disturb |
+| Join a video call | **Join** on the reminder, the widget chip, the Today tab or the day agenda |
 | Move it | Drag the widget. The position is remembered |
 
 ## Build installers
@@ -178,8 +207,8 @@ You normally do not need to run these by hand: pushing to `main` builds all plat
 
 | Workflow | When | What it does |
 |---|---|---|
-| `.github/workflows/ci.yml` | Pull requests and pushes to any branch except `main` | Type-check, unit tests and a production build on Ubuntu |
-| `.github/workflows/release.yml` | Every push to `main`, or manually (Actions → Release → Run workflow) | Runs the checks, builds installers on Windows, macOS and Linux runners, and publishes them as a new GitHub Release |
+| `.github/workflows/ci.yml` | Pull requests and pushes to any branch except `main` | Type-check, unit tests and a production build on Ubuntu, plus **end-to-end tests** of the real app on Ubuntu and Windows |
+| `.github/workflows/release.yml` | Every push to `main`, or manually (Actions → Release → Run workflow) | Runs the checks (including the end-to-end tests), builds installers on Windows, macOS and Linux runners, and publishes them as a new GitHub Release |
 
 **One-time setup:** the installers need your Google OAuth client, so add two repository secrets under *Settings → Secrets and variables → Actions*: `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (the same values as in your `.env`). The build fails early with a clear message if they are missing.
 
@@ -191,6 +220,8 @@ Release assets (named `Lumi-<version>-<os>-<arch>.<ext>`):
 - **Update feed:** `latest.yml`, `latest-mac.yml`, `latest-linux.yml` and `.blockmap` files, which installed apps read to update themselves (see below)
 
 **Version numbers are automatic.** Each release is `<major>.<minor>.<run number>`, for example `0.1.57`: the major and minor come from `version` in `package.json` and the patch is the workflow run number, so every release is newer than the one before. Change `major.minor` in `package.json` for bigger releases. The version is stamped into the build and nothing is committed back. The release is tagged `v<version>`, marked as the latest, and only the newest 5 releases are kept (installers are large).
+
+The end-to-end tests (`npm run test:e2e`, after `npm run build`) start the real built app with a throw-away profile and drive it over the Chrome DevTools protocol: settings, do-not-disturb, quick-capture parsing and its window, and link safety. On Linux they run under a virtual display (`xvfb-run`). Actions are kept on current major versions (checkout, setup-node, upload/download-artifact) and runners are pinned to `ubuntu-24.04`.
 
 Notes:
 
@@ -228,9 +259,16 @@ electron/              Main process (Node)
   agent/               ollama.ts (HTTP client, auto-start, per-task models), agent.ts (tool-calling loop + email triage), mailTools.ts (draft replies, email → event)
   voice/               transcribe.ts (local Whisper speech-to-text)
   updater.ts           Update service: electron-updater for Windows/AppImage, release-page check elsewhere
-  services/            sync.ts (polling), reminders.ts, emailScoring.ts, time.ts, briefing.ts, focus.ts
+  services/            sync.ts (polling), reminders.ts, emailScoring.ts, time.ts, briefing.ts, focus.ts, dnd.ts (do-not-disturb + Windows full-screen probe), weather.ts (Open-Meteo + location)
+  quickCapture.ts      Global shortcut and the small quick-capture window
 shared/types.ts        Types shared by main + renderer
 shared/appearance.ts   Shape and accessory tables, slot rules and settings migration
+shared/dnd.ts          Do-not-disturb rules (manual, full-screen, meeting)
+shared/meeting.ts      Meeting-link detection, safe-link allow-list, join window
+shared/quickParse.ts   English/Portuguese sentence → event parser
+shared/weather.ts      Weather codes, seasons, automatic look and falling particles
+shared/proactive.ts    Tip engine (cooldowns, activity tracking)
+shared/notices.ts      System reactions (battery, network, audio devices, lock)
 shared/color.ts        Colour maths (hex/RGB/HSV/HSL), skin derivation and saved-swatch helpers
 src/                   React renderer (space UI)
   components/          Mascot (SVG star), shapes (body shapes), gear (accessories), Starfield (canvas), CompactView, CalendarWidget, MonthCalendar, DayAgenda, QuickAdd, FocusCard, BriefingCard, Panel, LoginScreen
@@ -247,31 +285,38 @@ src/                   React renderer (space UI)
   mascotLife.tsx       Hooks that decide what the star is doing (sleep, dance, actions) and start music listening
   music/               beat.ts (tempo + beat detection), listener.ts (system-audio capture and analysis)
   voice.ts             Microphone recording (16 kHz mono) for voice input
+  automation.ts        Hooks for do-not-disturb, weather, system reactions and tips
+  QuickCapture.tsx     The quick-capture window (route `#quick`)
   api.ts               window.lumi + a mock for browser preview
-tests/                 Unit tests (core, docs, calendar, features, music, life, motion, appearance, color, updater, face, gaze, interaction)
+tests/                 Unit tests (core, docs, calendar, features, music, life, motion, appearance, color, updater, face, gaze, interaction, meeting, dnd, quickParse, weather, proactive, notices, services, windows)
+tests/e2e/             End-to-end tests of the real app (harness + scenarios)
 scripts/oauth-json.mjs Builds google-oauth.json from .env or environment variables for installers
 .github/workflows/     CI (ci.yml) and release builds (release.yml)
 ```
 
 ## Scripts
 
-`npm run dev` · `npm run build` · `npm start` · `npm test` · `npm run typecheck` · `npm run dist`
+`npm run dev` · `npm run build` · `npm start` · `npm test` · `npm run test:e2e` · `npm run typecheck` · `npm run dist`
 
 ## Privacy & security
 
 - Google data is fetched directly from Google to your computer. There is no Lumi backend.
 - Tokens are encrypted at rest with the OS keychain (DPAPI on Windows, Keychain on macOS).
-- The renderer is sandboxed with `contextIsolation` and a strict CSP in production. It can only open `*.google.com` links externally.
+- The renderer is sandboxed with `contextIsolation` and a strict CSP in production. It can only open `https` links to `*.google.com` and known video-meeting services externally.
 - The agent can only *read* email (`gmail.readonly`). Creating a calendar event always needs your click.
 - The Docs permission (`documents`) is used only to create the documents you ask for. Only files you pick in the file dialog are read.
 - The Gmail compose permission (`gmail.compose`) is used only to save drafts you ask for. Lumi never sends email.
 - The assignment feature sends short search queries (not your files) to OpenAlex.
+- Weather: an IP-geolocation request (ipwho.is, then ipapi.co as a fallback) finds your approximate place, unless you type a city, and your coordinates are sent to Open-Meteo. Nothing else is sent, and Settings → Weather and seasons turns it off.
+- Quick capture sends your sentence nowhere unless the rules cannot understand it and your local Ollama is running (it stays on your computer).
 - Update checks contact GitHub (the repository's releases) and send nothing about you beyond what any web request reveals.
 - Music detection only runs while "Dance to music" is on. It analyses the system audio output in memory; audio is never stored or sent, and the grant is limited to audio of Lumi's own window.
 - Voice is transcribed locally. The only network access is the one-time download of the speech model from Hugging Face. The microphone permission is granted only to Lumi's own window.
 
 ## Known limitations / next steps
 
+- **Full-screen detection** for do-not-disturb works on Windows only. Meetings and the manual pause work everywhere.
+- IP geolocation is approximate (often the city of your provider). Type a city in Settings for accuracy.
 - **"Show desktop" (Win + D)** also hides Lumi on Windows. Embedding into the wallpaper layer (WorkerW) would need a native module. Use the shortcut or "Always on top" for now.
 - Only the primary calendar is read. Google Tasks are not shown in the calendar views.
 - The calendar views are read-only. Create events from the Today tab or the chat.

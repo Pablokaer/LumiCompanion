@@ -22,8 +22,8 @@ export function DayAgenda({ day, events, now, empty = 'Nothing planned — clear
               <span className="agenda-title">{e.title}</span>
               {e.location && <small>{e.location}</small>}
             </span>
-            {e.meetLink && !done && (
-              <button className="icon-btn" onClick={() => api.window.openExternal(e.meetLink!)} aria-label={`Join ${e.title}`} title="Join the call"><VideoIcon width={16} height={16} /></button>
+            {(e.joinUrl ?? e.meetLink) && !done && (
+              <button className="icon-btn" onClick={() => api.window.openExternal((e.joinUrl ?? e.meetLink)!)} aria-label={`Join ${e.title}`} title="Join the call"><VideoIcon width={16} height={16} /></button>
             )}
           </li>
         );

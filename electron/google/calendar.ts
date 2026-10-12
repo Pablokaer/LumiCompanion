@@ -1,4 +1,5 @@
 import type { CalendarEvent, NewEventInput } from '../../shared/types';
+import { findMeetingLink } from '../../shared/meeting';
 import { addDaysLocal, addMinutesLocal, isLocalDate, isLocalDateTime, localTimeZone, parseLocal } from '../services/time';
 import { googleFetch } from './auth';
 
@@ -12,6 +13,7 @@ interface GEvent {
   location?: string;
   htmlLink?: string;
   hangoutLink?: string;
+  conferenceData?: { entryPoints?: { entryPointType?: string; uri?: string }[] };
   start: { dateTime?: string; date?: string };
   end: { dateTime?: string; date?: string };
 }
@@ -29,6 +31,9 @@ export function mapEvent(e: GEvent): CalendarEvent {
     location: e.location,
     description: e.description,
     meetLink: e.hangoutLink,
+    joinUrl: e.hangoutLink ?? findMeetingLink(
+      e.conferenceData?.entryPoints?.find((p) => p.entryPointType === 'video')?.uri, e.location, e.description,
+    ),
     htmlLink: e.htmlLink,
   };
 }

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { api, isMock } from './api';
 import { nextDelayMs, pickAction, sleepThresholdSeconds, WAKE_MS, type MascotAction } from './behavior';
+import type { NoticeAction, NoticeTone } from '../shared/notices';
 import { InteractionController, type Reaction } from './interaction';
 import { beatClock, MusicListener, type MusicSnapshot } from './music/listener';
 
@@ -16,6 +17,10 @@ export interface LifeState {
   dancing: boolean;
   /** Eyes follow the mouse cursor. */
   followMouse: boolean;
+  /** Do not disturb or low battery: calm and still. */
+  quiet: boolean;
+  /** How she feels about the notice she is showing, if any. */
+  noticeTone?: NoticeTone;
   /** How she is reacting to the mouse passing over her (laugh, blush, purr, bite). */
   reaction: Reaction;
   reactionKey: number;
@@ -30,7 +35,7 @@ export interface LifeState {
 const NO_INTERACTION = { enter() {}, leave() {}, move() {} };
 
 export const IDLE_LIFE: LifeState = {
-  action: 'none', actionKey: 0, sleeping: false, dancing: false, followMouse: true, reaction: 'none', reactionKey: 0, reactionLine: '',
+  action: 'none', actionKey: 0, sleeping: false, dancing: false, followMouse: true, quiet: false, reaction: 'none', reactionKey: 0, reactionLine: '',
   interact: NO_INTERACTION, bpm: 0, musicStatus: 'off',
 };
 
@@ -82,14 +87,19 @@ interface LifeInput {
   reactToMusic: boolean;
   followMouse: boolean;
   petReactions: boolean;
+  /** Do not disturb or low battery. */
+  quiet?: boolean;
+  /** A notice she is currently showing: its tone and the action it asks for. */
+  notice?: { tone: NoticeTone; action: NoticeAction };
   /** Something important is going on (reminder, chat, focus): stay calm. */
   calm: boolean;
 }
 
 /** Decides what the star is doing: dancing, sleeping, waking up, or a random little action. */
-export function useMascotLife({ lively, sleepAfterMinutes, idleSeconds, music, reactToMusic, followMouse, petReactions, calm }: LifeInput): LifeState {
+export function useMascotLife({ lively, sleepAfterMinutes, idleSeconds, music, reactToMusic, followMouse, petReactions, calm: busy, quiet = false, notice }: LifeInput): LifeState {
+  const calm = busy || quiet;
   const reduced = useMemo(prefersReducedMotion, []);
-  const dancing = reactToMusic && music.playing;
+  const dancing = reactToMusic && music.playing && !quiet;
   const sleeping = !dancing && idleSeconds >= sleepThresholdSeconds(sleepAfterMinutes);
 
   // Wake up with a stretch when the computer is used again.
@@ -157,11 +167,13 @@ export function useMascotLife({ lively, sleepAfterMinutes, idleSeconds, music, r
   const forced = isMock ? (new URLSearchParams(location.search).get('action') as MascotAction | null) : null;
 
   return {
-    action: forced ?? (waking ? 'wake' : action),
+    action: forced ?? (notice && notice.action !== 'none' && !quiet ? notice.action : waking ? 'wake' : action),
     actionKey,
     sleeping,
     dancing,
     followMouse,
+    quiet,
+    noticeTone: notice?.tone,
     reaction: forcedReaction ?? reactionState.reaction,
     reactionKey: reactionState.key,
     reactionLine: forcedReaction ? `(${forcedReaction})` : reactionState.line,

@@ -2,7 +2,10 @@ import { useMemo, useState } from 'react';
 import type { Briefing, FocusState, ReminderPayload, WidgetView } from '../../shared/types';
 import { addDays, dayKey, eventsByDay, gridRange, monthTitle, sameMonth, shiftMonth, startOfDay } from '../calendar';
 import { useRangeEvents } from '../useRangeEvents';
+import type { DndState } from '../../shared/dnd';
 import { BriefingCard } from './BriefingCard';
+import { DndBadge } from './DndBadge';
+import { JoinButton } from './JoinButton';
 import { DayAgenda } from './DayAgenda';
 import { FocusStrip } from './FocusCard';
 import { Mascot, type Mood } from './Mascot';
@@ -17,6 +20,7 @@ interface Props {
   version?: string;
   focus?: FocusState;
   briefing?: Briefing;
+  dnd?: DndState;
   onDismissBriefing(): void;
   onDismissReminder(): void;
   onExpand(): void;
@@ -28,7 +32,7 @@ interface Props {
  * or a single day's agenda. The star stays in the corner (click to open Lumi) and
  * reminders still appear as a banner.
  */
-export function CalendarWidget({ view, mood, name, now, reminder, version, focus, briefing, onDismissBriefing, onDismissReminder, onExpand, onPoke }: Props) {
+export function CalendarWidget({ view, mood, name, now, reminder, version, focus, briefing, dnd, onDismissBriefing, onDismissReminder, onExpand, onPoke }: Props) {
   const [selected, setSelected] = useState(() => startOfDay(now));
   const month = shiftMonth(selected, 0);
   const rangeKey = dayKey(view === 'month' ? month : selected);
@@ -67,10 +71,12 @@ export function CalendarWidget({ view, mood, name, now, reminder, version, focus
         <div className="reminder-banner" role="alert">
           <span className="pulse" />
           <span>{reminder.message}</span>
+          {reminder.event.joinUrl && <JoinButton url={reminder.event.joinUrl} className="reminder-join" />}
           <button onClick={onDismissReminder}>Got it</button>
         </div>
       )}
 
+      {dnd?.active && <div className="dnd-strip"><DndBadge dnd={dnd} /></div>}
       {focus && <FocusStrip focus={focus} />}
 
       <div className="cal-widget-body">

@@ -96,3 +96,35 @@ export function normalizeSuggestion(raw: unknown): NewEventInput | undefined {
     description: String(json.description ?? '').trim() || undefined,
   };
 }
+
+/**
+ * Asks the local model to turn a free-form note into one calendar event. Used by quick capture when the
+ * simple rules found no date or time. Returns undefined when the model has nothing concrete to offer.
+ */
+export async function eventFromText(
+  text: string, settings: Settings, now = new Date(), chat: Chat = ollamaChat,
+): Promise<NewEventInput | undefined> {
+  const weekday = now.toLocaleDateString('en-US', { weekday: 'long' });
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  try {
+    const reply = await chat({
+      baseUrl: settings.ollamaUrl,
+      model: modelFor(settings, 'chat'),
+      format: 'json',
+      timeoutMs: 60_000,
+      numCtx: 4096,
+      messages: [
+        {
+          role: 'system',
+          content: `Today is ${weekday} ${today}. Turn the user's note into ONE calendar event. The note may be in English or Portuguese. ` +
+            'Respond ONLY with JSON: {"found":true|false,"title":"short title","start":"YYYY-MM-DDTHH:mm or YYYY-MM-DD","end":"YYYY-MM-DDTHH:mm or empty","location":"or empty","description":"or empty"}. ' +
+            'Resolve relative dates from today. If the note gives no concrete date or time, set found to false. Never guess a date.',
+        },
+        { role: 'user', content: text.slice(0, 500) },
+      ],
+    });
+    return normalizeSuggestion(JSON.parse(reply.content));
+  } catch {
+    return undefined;
+  }
+}

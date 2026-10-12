@@ -1,6 +1,9 @@
+import type { DndState } from '../shared/dnd';
+import { isUnderstood, parseQuickEvent, toEventInput } from '../shared/quickParse';
 import type {
-  AuthState, CalendarEvent, ChatMessage, DataSnapshot, FocusState, LumiApi, NewEventInput, ScoredEmail, Settings, UpdateState,
+  AuthState, CalendarEvent, CaptureResult, ChatMessage, DataSnapshot, FocusState, LumiApi, NewEventInput, ScoredEmail, Settings, UpdateState,
 } from '../shared/types';
+import type { WeatherCondition, WeatherState } from '../shared/weather';
 
 declare global {
   interface Window { lumi?: LumiApi }
@@ -25,11 +28,11 @@ function createMockApi(): LumiApi {
   const params = new URLSearchParams(location.search);
   let auth: AuthState = { configured: true, signedIn: params.get('signedIn') !== '0', profile: { name: 'Pablo', email: 'pablo@example.com' } };
   let settings: Settings = {
-    mascotName: 'Lumi', widgetMode: 'desktop', widgetView: (params.get('view') as Settings['widgetView']) ?? 'mascot', skin: ((params.get('skin') as Settings['skin']) ?? 'classic'), customColor: '#' + (params.get('color') ?? 'ff6fae'), colorSwatches: ['#ff6fae', '#34d399', '#f59e0b'], shape: (params.get('shape') as Settings['shape']) ?? 'star', accessories: (params.get('acc')?.split(',').filter(Boolean) ?? []) as Settings['accessories'], mascotLife: true, followMouse: true, petReactions: true, sleepAfterMinutes: 3, reactToMusic: true, autoUpdate: true, autoStartOllama: true, morningBriefing: true, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', modelChat: '', modelTriage: '', modelWriting: '', launchAtLogin: true, reminderLeadMinutes: [15, 5], systemNotifications: true,
+    mascotName: 'Lumi', widgetMode: 'desktop', widgetView: (params.get('view') as Settings['widgetView']) ?? 'mascot', skin: ((params.get('skin') as Settings['skin']) ?? 'classic'), customColor: '#' + (params.get('color') ?? 'ff6fae'), colorSwatches: ['#ff6fae', '#34d399', '#f59e0b'], shape: (params.get('shape') as Settings['shape']) ?? 'star', accessories: (params.get('acc')?.split(',').filter(Boolean) ?? []) as Settings['accessories'], mascotLife: true, followMouse: true, petReactions: true, dndFullscreen: true, dndMeetings: false, dndHideWidget: true, quickCapture: true, quickCaptureShortcut: 'CommandOrControl+Shift+Space', weather: true, weatherPlace: '', temperatureUnit: 'c', seasonalLook: true, reactToSystem: true, proactiveTips: true, tipFrequency: 'normal', sleepAfterMinutes: 3, reactToMusic: true, autoUpdate: true, autoStartOllama: true, morningBriefing: true, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', modelChat: '', modelTriage: '', modelWriting: '', launchAtLogin: true, reminderLeadMinutes: [15, 5], systemNotifications: true,
     ollamaUrl: 'http://127.0.0.1:11434', ollamaModel: 'llama3.1:8b', aiEmailTriage: true, emailLookbackDays: 2,
   };
   const events: CalendarEvent[] = [
-    { id: '1', title: 'Team stand-up', start: soon, end: soonEnd, allDay: false, meetLink: 'https://meet.google.com/abc' },
+    { id: '1', title: 'Team stand-up', start: soon, end: soonEnd, allDay: false, meetLink: 'https://meet.google.com/abc', joinUrl: 'https://meet.google.com/abc' },
     { id: '2', title: 'Lunch with Marina', start: at(0, 13), end: at(0, 14), allDay: false, location: 'Café Orbital' },
     { id: '3', title: 'Product review', start: at(0, 16, 30), end: at(0, 17, 30), allDay: false },
     { id: '4', title: 'Mum’s birthday 🎂', start: at(1, 0), end: at(2, 0), allDay: true },
@@ -111,6 +114,36 @@ function createMockApi(): LumiApi {
         openDownload: async () => { window.open('https://github.com/Pablokaer/LumiCompanion/releases/latest', '_blank'); },
       };
     })(),
+    dnd: (() => {
+      // ?dnd=fullscreen|meeting|manual shows each kind of quiet in the browser preview
+      const forced = params.get('dnd') as DndState['reason'] | null;
+      let state: DndState = forced ? { active: true, reason: forced, until: forced === 'manual' ? Date.now() + 3_600_000 : undefined, meeting: forced === 'meeting' ? 'Team stand-up' : undefined } : { active: false };
+      return {
+        get: async () => state,
+        set: async (ms: number | null) => { state = ms ? { active: true, reason: 'manual', until: ms } : { active: false }; emit('dnd:state', state); return state; },
+      };
+    })(),
+    weather: (() => {
+      // ?weather=rain|snow|hot|cold|fog|thunder|clear|off shows each kind of weather in the browser preview
+      const kind = params.get('weather') ?? 'clear';
+      const presets: Record<string, { condition: WeatherCondition; temperatureC: number; isDay?: boolean }> = {
+        rain: { condition: 'rain', temperatureC: 14 }, snow: { condition: 'snow', temperatureC: -2 }, hot: { condition: 'clear', temperatureC: 34 },
+        cold: { condition: 'cloudy', temperatureC: 2 }, fog: { condition: 'fog', temperatureC: 9 }, thunder: { condition: 'thunder', temperatureC: 19 },
+        clear: { condition: 'clear', temperatureC: 21 }, night: { condition: 'clear', temperatureC: 12, isDay: false },
+      };
+      const preset = presets[kind];
+      const state: WeatherState = kind === 'off' || !preset ? { status: 'off' } : { status: 'ok', place: 'Lisbon, Portugal', latitude: Number(params.get('lat') ?? 38.7), isDay: true, updatedAt: Date.now(), ...preset };
+      return { get: async () => state, refresh: async () => state };
+    })(),
+    capture: {
+      parse: async (text: string): Promise<CaptureResult> => {
+        await wait(150);
+        const parsed = parseQuickEvent(text);
+        return isUnderstood(parsed) ? { event: toEventInput(parsed), understood: true, via: 'rules' } : { event: { title: parsed.title, start: '' }, understood: false, via: 'none' };
+      },
+      close: async () => undefined,
+      setShortcut: async (accelerator: string) => (/\+/.test(accelerator) ? { ok: true } : { ok: false, error: `“${accelerator}” is not a valid shortcut. Use something like CommandOrControl+Shift+Space.` }),
+    },
     music: {
       requestStart: async () => undefined,
     },
@@ -168,6 +201,11 @@ function createMockApi(): LumiApi {
     on(channel, listener) {
       if (!listeners.has(channel)) listeners.set(channel, new Set());
       listeners.get(channel)!.add(listener);
+      if (channel === 'system' && params.get('system')) {
+        // ?system=unlock-screen|on-ac|on-battery|resume plays one system event shortly after loading
+        const kind = params.get('system')!;
+        window.setTimeout(() => listener({ kind }), 1500);
+      }
       if (channel === 'cursor') {
         const move = (e: PointerEvent) => listener({ x: e.clientX, y: e.clientY });
         window.addEventListener('pointermove', move);

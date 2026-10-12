@@ -2,9 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   AgentStatus, AuthState, Briefing, ChatMessage, ConfirmRequest, DataSnapshot, FocusState, ReminderPayload, Settings, WindowMode,
 } from '../shared/types';
-import { api } from './api';
+import { meetingNow } from '../shared/dnd';
+import { ambientFor, autoAccessories, seasonFor } from '../shared/weather';
+import { api, isMock } from './api';
 import { AppearanceProvider, skinVars } from './appearance';
+import { useDnd, useNoticeState, useSystemNotices, useTips, useWeather } from './automation';
 import { ACTION_LINES } from './behavior';
+import { AmbientLayer } from './components/AmbientLayer';
 import { CalendarWidget } from './components/CalendarWidget';
 import { CompactView } from './components/CompactView';
 import { LoginScreen } from './components/LoginScreen';
@@ -96,6 +100,16 @@ export default function App() {
     [reminder, chat.status.state, focus, happyUntil, now],
   );
 
+  // ---- do not disturb, weather, and what she says about the computer ----
+  const dnd = useDnd();
+  const weather = useWeather();
+  const { notice, push: pushNotice, clear: clearNotice } = useNoticeState();
+  const lowPower = useSystemNotices(settings?.reactToSystem ?? false, pushNotice, {
+    onAway: () => setIdleSeconds(3600), // the screen was locked or the computer went to sleep: she dozes off at once
+    onBack: () => setIdleSeconds(0),
+  });
+  const quiet = dnd.active || lowPower;
+
   // ---- the star's life: music, sleep and spontaneous actions ----
   const reactToMusic = settings?.reactToMusic ?? false;
   const music = useMusic(reactToMusic);
@@ -107,8 +121,20 @@ export default function App() {
     reactToMusic,
     followMouse: settings?.followMouse ?? true,
     petReactions: settings?.petReactions ?? true,
+    quiet,
+    notice,
     calm: !!reminder || chat.status.state !== 'idle' || !!focus,
   });
+
+  // gentle tips: only when nothing else is going on
+  useTips({
+    enabled: settings?.proactiveTips ?? false,
+    frequency: settings?.tipFrequency ?? 'normal',
+    idleSeconds,
+    quiet: quiet || !!focus || !!reminder || life.sleeping || !!meetingNow(data.events, Date.now()),
+    weather,
+    eventSoon: !!upcoming && minutesToNext <= 180 && !!upcoming.location && !/^https?:/i.test(upcoming.location),
+  }, pushNotice);
 
   const name = settings?.mascotName ?? 'Lumi';
   const speech = useMemo(() => {
@@ -117,6 +143,8 @@ export default function App() {
     if (chat.status.state !== 'idle') return ['Thinking among the stars…'];
     if (briefing) return [briefing.title, ...briefing.lines.slice(0, 5).map((l) => l.replace(/^•\s*/, ''))];
     if (focus) return [`Focus time — ${Math.max(1, Math.ceil((focus.endsAt - Date.now()) / 60_000))} min left ✦`];
+    if (dnd.active) return ['🔕 Quiet mode — I will stay out of your way'];
+    if (notice) return [notice.line];
     if (life.reactionLine) return [life.reactionLine];
     if (life.sleeping) return ['Zzz… 💤'];
     if (life.dancing) return [`♪ ${life.bpm} BPM — I love this one!`, 'Dance with me! ✦'];
@@ -129,7 +157,7 @@ export default function App() {
     lines.push(`${greeting(now)}${first ? `, ${first}` : ''}!`);
     if (!upcoming) lines.push('Your sky is clear — no more events today 🌌');
     return lines;
-  }, [reminder, briefing, focus, life.reactionLine, life.sleeping, life.dancing, life.bpm, life.action, chat.status.state, upcoming, minutesToNext, highEmails.length, auth?.profile?.name, now]);
+  }, [reminder, briefing, focus, dnd.active, notice, life.reactionLine, life.sleeping, life.dancing, life.bpm, life.action, chat.status.state, upcoming, minutesToNext, highEmails.length, auth?.profile?.name, now]);
 
   const poke = () => setHappyUntil(Date.now() + 2500);
 
@@ -137,7 +165,13 @@ export default function App() {
 
   const shownSkin = liveColor ? 'custom' : settings.skin;
   const shownColor = liveColor ?? settings.customColor;
-  const appearance = { skin: shownSkin, customColor: shownColor, shape: settings.shape, accessories: settings.accessories };
+  // The look can follow the weather and the season; ?today=2026-12-24 previews a date in the browser preview.
+  const today = isMock && new URLSearchParams(location.search).get('today');
+  const lookNow = today ? new Date(`${today}T12:00:00`) : now;
+  const weatherOk = weather?.status === 'ok' ? weather : undefined;
+  const accessories = settings.seasonalLook ? autoAccessories({ worn: settings.accessories, weather: weatherOk, now: lookNow }) : settings.accessories;
+  const ambient = settings.seasonalLook && !quiet ? ambientFor(weatherOk?.condition, seasonFor(lookNow, weatherOk?.latitude)) : 'none';
+  const appearance = { skin: shownSkin, customColor: shownColor, shape: settings.shape, accessories };
 
   if (!auth.signedIn) {
     return (
@@ -157,6 +191,7 @@ export default function App() {
     <LifeProvider value={life}>
     <div className={`shell ${mode}${reminder ? ' has-reminder' : ''}`} style={skinVars(shownSkin, shownColor)}>
       {mode === 'expanded' && <Starfield />}
+      {(mode === 'expanded' || settings.widgetView !== 'mascot') && <AmbientLayer kind={ambient} />}
       {mode === 'compact' && settings.widgetView !== 'mascot' ? (
         <CalendarWidget
           view={settings.widgetView}
@@ -167,6 +202,7 @@ export default function App() {
           version={data.lastSync}
           focus={focus}
           briefing={briefing}
+          dnd={dnd}
           onDismissBriefing={() => setBriefing(undefined)}
           onDismissReminder={() => setReminder(undefined)}
           onExpand={() => { setReminder(undefined); changeMode('expanded'); }}
@@ -177,6 +213,7 @@ export default function App() {
           mood={mood}
           name={name}
           lines={speech}
+          ambient={ambient}
           upcoming={upcoming}
           now={now}
           onExpand={() => { setReminder(undefined); setBriefing(undefined); changeMode('expanded'); }}
@@ -204,6 +241,9 @@ export default function App() {
           focus={focus}
           briefing={briefing}
           onDismissBriefing={() => setBriefing(undefined)}
+          dnd={dnd}
+          notice={notice}
+          onDismissNotice={clearNotice}
         />
       )}
     </div>

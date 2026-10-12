@@ -40,15 +40,16 @@ export function Mascot({ mood = 'idle', size = 140, onClick, title }: Props) {
   const shapeProps = { shape, fill, uid: id, stops };
 
   const lively = size >= MIN_LIVELY_SIZE;
-  const smooth = lively && !reduced;
+  const quiet = lively && life.quiet;
+  const smooth = lively && !reduced && !quiet;
   const calm = mood === 'alert' || mood === 'thinking';
   const sleeping = lively && life.sleeping && !calm;
   const dancing = lively && life.dancing && !calm;
   // Actions are never cut short: they finish their own animation, which starts and ends at rest.
-  const action: MascotAction = lively ? life.action : 'none';
+  const action: MascotAction = lively && !quiet ? life.action : 'none';
 
   const reaction = lively && !calm && !sleeping ? life.reaction : 'none';
-  const face = faceFor({ mood, sleeping, dancing, action, reaction });
+  const face = faceFor({ mood, sleeping, dancing, action, reaction, tone: quiet ? undefined : life.noticeTone });
   const yawning = action === 'stretch' || action === 'wake';
 
   const target: BaseMotion = reaction !== 'none' ? reaction : sleeping ? 'breathe' : dancing ? 'dance' : MOOD_MOTION[mood];
@@ -142,6 +143,7 @@ export function Mascot({ mood = 'idle', size = 140, onClick, title }: Props) {
   const classes = [
     'mascot', `mood-${face.mouth}`, smooth ? 'js-motion' : '',
     sleeping ? 'is-sleeping' : '', dancing ? 'is-dancing' : '', action === 'hum' ? 'is-humming' : '',
+    life.noticeTone === 'worried' && !quiet && reaction === 'none' ? 'is-worried' : '',
     reaction === 'giggle' ? 'is-giggling' : reaction === 'shy' ? 'is-shy' : reaction === 'purr' ? 'is-purring' : reaction === 'bite' ? 'is-biting' : '',
   ].filter(Boolean).join(' ');
 

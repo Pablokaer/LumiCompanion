@@ -3,7 +3,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { LumiApi } from '../shared/types';
 
-const EVENTS = new Set(['reminder', 'data:updated', 'agent:confirm', 'agent:status', 'auth:changed', 'settings:changed', 'focus:changed', 'briefing', 'activity', 'update:state', 'cursor']);
+const EVENTS = new Set(['reminder', 'data:updated', 'agent:confirm', 'agent:status', 'auth:changed', 'settings:changed', 'focus:changed', 'briefing', 'activity', 'update:state', 'cursor', 'dnd:state', 'weather:state', 'system', 'quick:show']);
 
 const api: LumiApi = {
   auth: {
@@ -26,6 +26,19 @@ const api: LumiApi = {
     get: () => ipcRenderer.invoke('focus:get'),
     start: (minutes) => ipcRenderer.invoke('focus:start', minutes),
     stop: () => ipcRenderer.invoke('focus:stop'),
+  },
+  dnd: {
+    get: () => ipcRenderer.invoke('dnd:get'),
+    set: (untilMs) => ipcRenderer.invoke('dnd:set', untilMs),
+  },
+  weather: {
+    get: () => ipcRenderer.invoke('weather:get'),
+    refresh: () => ipcRenderer.invoke('weather:refresh'),
+  },
+  capture: {
+    parse: (text) => ipcRenderer.invoke('capture:parse', text),
+    close: () => ipcRenderer.invoke('capture:close'),
+    setShortcut: (accelerator) => ipcRenderer.invoke('capture:setShortcut', accelerator),
   },
   updates: {
     getState: () => ipcRenderer.invoke('update:getState'),

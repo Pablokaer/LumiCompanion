@@ -1,5 +1,7 @@
 import { useState, type Dispatch, type SetStateAction } from 'react';
+import type { DndState } from '../../shared/dnd';
 import type { AuthState, Briefing, DataSnapshot, FocusState, ReminderPayload, Settings } from '../../shared/types';
+import type { ActiveNotice } from '../automation';
 import { api } from '../api';
 import type { ChatState } from '../App';
 import { ChatTab } from '../tabs/ChatTab';
@@ -8,6 +10,9 @@ import { SettingsTab } from '../tabs/SettingsTab';
 import { CalendarTab } from '../tabs/CalendarTab';
 import { TodayTab } from '../tabs/TodayTab';
 import { BriefingCard } from './BriefingCard';
+import { dndText } from './DndBadge';
+import { JoinButton } from './JoinButton';
+import { NoticeToast } from './NoticeToast';
 import { UpdateBanner } from './UpdateBanner';
 import { formatClock, useRemaining } from './FocusCard';
 import { CalendarIcon, ChatIcon, CloseIcon, GearIcon, MailIcon, MinimizeIcon, OrbitIcon, RefreshIcon } from './Icons';
@@ -37,6 +42,9 @@ interface Props {
   focus?: FocusState;
   briefing?: Briefing;
   onDismissBriefing(): void;
+  dnd: DndState;
+  notice?: ActiveNotice;
+  onDismissNotice(): void;
 }
 
 const TABS: { id: Tab; label: string; Icon: typeof OrbitIcon }[] = [
@@ -64,7 +72,7 @@ export function Panel(p: Props) {
           <Mascot mood={p.mood} size={40} title={p.name} />
           <div>
             <div className="brand-name">{p.name}</div>
-            <div className="brand-sub">{p.focus ? `Focus · ${formatClock(remaining)} left` : syncing ? 'Syncing the cosmos…' : p.data.error ? 'Sync problem — retrying' : 'Your space companion'}</div>
+            <div className="brand-sub">{p.dnd.active ? `🔕 ${dndText(p.dnd)}` : p.focus ? `Focus · ${formatClock(remaining)} left` : syncing ? 'Syncing the cosmos…' : p.data.error ? 'Sync problem — retrying' : 'Your space companion'}</div>
           </div>
         </div>
         <div className="header-actions no-drag">
@@ -78,12 +86,14 @@ export function Panel(p: Props) {
         <div className="reminder-banner" role="alert">
           <span className="pulse" />
           <span>{p.reminder.message}</span>
+          {p.reminder.event.joinUrl && <JoinButton url={p.reminder.event.joinUrl} className="reminder-join" />}
           <button onClick={p.onDismissReminder}>Got it</button>
         </div>
       )}
 
       <main className="panel-body">
         <UpdateBanner />
+        {p.notice && <NoticeToast notice={p.notice} onDismiss={p.onDismissNotice} />}
         {p.briefing && <BriefingCard briefing={p.briefing} onDismiss={p.onDismissBriefing} />}
         {p.tab === 'today' && <TodayTab events={p.data.events} now={p.now} name={p.auth.profile?.name} focus={p.focus} focusMinutes={p.settings.focusMinutes} />}
         {p.tab === 'calendar' && <CalendarTab data={p.data} now={p.now} />}

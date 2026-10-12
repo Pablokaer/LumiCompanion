@@ -43,15 +43,16 @@ export const SHAPE_INFO: Record<Shape, ShapeInfo> = {
   comet: { label: 'Comet', group: 'Space', icon: '☄️', topOffset: 25, armSpread: 4 },
 };
 
-export const SLOT_LABEL: Record<AccessorySlot, string> = { head: 'Head', ears: 'Ears', eyes: 'Eyes', neck: 'Neck', face: 'Face' };
+export const SLOT_LABEL: Record<AccessorySlot, string> = { head: 'Head', ears: 'Ears', eyes: 'Eyes', neck: 'Neck', face: 'Face', prop: 'Prop' };
 
 export const ACCESSORY_LABEL: Record<Accessory, string> = {
   hat: 'Party hat', crown: 'Crown', wizard: 'Wizard hat', tophat: 'Top hat', halo: 'Halo', flower: 'Flower',
-  catears: 'Cat ears', antenna: 'Antenna', bow: 'Bow', helmet: 'Space helmet',
+  catears: 'Cat ears', antenna: 'Antenna', bow: 'Bow', helmet: 'Space helmet', santa: 'Santa hat', witch: 'Witch hat', beanie: 'Beanie',
   headphones: 'Headphones',
   glasses: 'Glasses', sunglasses: 'Sunglasses', monocle: 'Monocle',
   scarf: 'Scarf', bowtie: 'Bow tie',
   mustache: 'Mustache',
+  umbrella: 'Umbrella',
 };
 
 export interface Appearance { skin: Skin; customColor: string; shape: Shape; accessories: Accessory[] }

@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import { nextLocalHour } from '../../shared/dnd';
+import { weatherSummary } from '../../shared/weather';
+import { useDnd, useWeather } from '../automation';
 import { ACCESSORY_SLOTS, SLOT_ORDER, toggleAccessory } from '../../shared/appearance';
 import type { Accessory, AuthState, OllamaStatus, Settings, Shape, WidgetView } from '../../shared/types';
 import { api } from '../api';
@@ -28,6 +31,11 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
 }) {
   const [ollama, setOllama] = useState<OllamaStatus>();
   const life = useLife();
+  const dnd = useDnd();
+  const weather = useWeather();
+  const [place, setPlace] = useState(settings.weatherPlace);
+  const [shortcut, setShortcut] = useState(settings.quickCaptureShortcut);
+  const [shortcutError, setShortcutError] = useState<string>();
   const update_ = useUpdateState();
   const [ollamaUrl, setOllamaUrl] = useState(settings.ollamaUrl);
   const [mascotName, setMascotName] = useState(settings.mascotName);
@@ -37,6 +45,11 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
   const saveColor = async (hex: string) => {
     if (hex !== settings.customColor || settings.skin !== 'custom') await update({ customColor: hex, skin: 'custom' });
     onLiveColor(undefined);
+  };
+  const saveShortcut = async () => {
+    const r = await api.capture.setShortcut(shortcut.trim());
+    setShortcutError(r.ok ? undefined : r.error ?? 'That shortcut cannot be used.');
+    if (r.ok) onSettings(await api.settings.update({ quickCaptureShortcut: shortcut.trim() }));
   };
   const checkOllama = () => api.agent.ollamaStatus().then(setOllama);
   useEffect(() => { void checkOllama(); }, [settings.ollamaUrl]);
@@ -150,6 +163,69 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
               : 'Starting…'}
           </p>
         )}
+      </section>
+
+      <section className="card">
+        <h3>Do not disturb</h3>
+        <p className="hint">{dnd.active ? `🔕 Quiet right now (${dnd.reason === 'manual' ? 'paused by you' : dnd.reason === 'fullscreen' ? 'a full-screen app is open' : 'you are in a meeting'}). Reminders wait and come back as a summary.` : 'Not quiet right now.'}</p>
+        <div className="chips">
+          <button className="chip" onClick={() => api.dnd.set(Date.now() + 3_600_000)}>Quiet for 1 hour</button>
+          <button className="chip" onClick={() => api.dnd.set(nextLocalHour(Date.now(), 8))}>Until tomorrow morning</button>
+          {dnd.reason === 'manual' && <button className="chip on" onClick={() => api.dnd.set(null)}>Turn off</button>}
+        </div>
+        <Toggle label="Quiet when an app is full-screen" hint="Games, videos and presentations. Detected on Windows only; on other systems use the pause above or meetings." checked={settings.dndFullscreen} onChange={(v) => update({ dndFullscreen: v })} />
+        <Toggle label="Quiet during meetings" hint="While a calendar event with a time is running." checked={settings.dndMeetings} onChange={(v) => update({ dndMeetings: v })} />
+        <Toggle label="Hide the widget while quiet" hint="Only for full-screen apps, so she does not float over your game or video." checked={settings.dndHideWidget} onChange={(v) => update({ dndHideWidget: v })} />
+      </section>
+
+      <section className="card">
+        <h3>Weather and seasons</h3>
+        <Toggle label="Show the weather" hint="Your approximate place comes from your IP address (ipwho.is / ipapi.co) or the city below; the weather comes from Open-Meteo. Nothing else is sent." checked={settings.weather} onChange={(v) => update({ weather: v })} />
+        {settings.weather && (
+          <>
+            <label className="field">
+              <span>City (empty = detect automatically)</span>
+              <input value={place} placeholder="e.g. Lisbon" onChange={(e) => setPlace(e.target.value)} onBlur={() => place !== settings.weatherPlace && update({ weatherPlace: place.trim() })} />
+            </label>
+            <div className="field">
+              <span>Temperature</span>
+              <div className="chips" role="radiogroup" aria-label="Temperature unit">
+                {(['c', 'f'] as const).map((u) => <button key={u} role="radio" aria-checked={settings.temperatureUnit === u} className={`chip${settings.temperatureUnit === u ? ' on' : ''}`} onClick={() => update({ temperatureUnit: u })}>°{u.toUpperCase()}</button>)}
+              </div>
+            </div>
+            <p className={`hint${weather?.status === 'error' ? ' warn' : ''}`}>
+              {weather?.status === 'ok' ? `${weather.place ? `${weather.place}: ` : ''}${weatherSummary(weather, settings.temperatureUnit)}` : weather?.status === 'error' ? weather.message : 'Looking outside…'}
+            </p>
+            <button className="pill-btn ghost small" onClick={() => api.weather.refresh()}>Refresh</button>
+          </>
+        )}
+        <Toggle label="Dress for the weather and season" hint="Umbrella in the rain, scarf in the cold, sunglasses in the heat, festive hats on holidays, plus falling rain, snow, leaves or petals. Never replaces what you picked." checked={settings.seasonalLook} onChange={(v) => update({ seasonalLook: v })} />
+      </section>
+
+      <section className="card">
+        <h3>Quick capture</h3>
+        <Toggle label="Add events from anywhere" hint="Press the shortcut, type “lunch with Ana tomorrow 1pm” and it becomes an event." checked={settings.quickCapture} onChange={(v) => update({ quickCapture: v })} />
+        {settings.quickCapture && (
+          <label className="field">
+            <span>Shortcut</span>
+            <input value={shortcut} onChange={(e) => setShortcut(e.target.value)} onBlur={() => shortcut.trim() !== settings.quickCaptureShortcut && void saveShortcut()} />
+            {shortcutError ? <span className="hint warn">{shortcutError}</span> : <span className="hint">For example CommandOrControl+Shift+Space.</span>}
+          </label>
+        )}
+      </section>
+
+      <section className="card">
+        <h3>Tips and system reactions</h3>
+        <Toggle label="Gentle tips" hint="Water, stretching, rest your eyes, posture, late-night and rain reminders. Never while you are busy." checked={settings.proactiveTips} onChange={(v) => update({ proactiveTips: v })} />
+        {settings.proactiveTips && (
+          <div className="field">
+            <span>How often</span>
+            <div className="chips" role="radiogroup" aria-label="Tip frequency">
+              {(['rare', 'normal', 'often'] as const).map((f) => <button key={f} role="radio" aria-checked={settings.tipFrequency === f} className={`chip${settings.tipFrequency === f ? ' on' : ''}`} onClick={() => update({ tipFrequency: f })}>{f === 'rare' ? 'Rarely' : f === 'often' ? 'Often' : 'Normal'}</button>)}
+            </div>
+          </div>
+        )}
+        <Toggle label="React to the computer" hint="Low battery, charging, Wi-Fi dropping, headphones, locking the screen." checked={settings.reactToSystem} onChange={(v) => update({ reactToSystem: v })} />
       </section>
 
       <section className="card">

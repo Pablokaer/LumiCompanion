@@ -17,7 +17,7 @@ export function shouldShowBriefing(
 export const briefingDate = localDate;
 
 /** Builds the briefing text from today's events and the most important emails. Deterministic, no AI needed. */
-export function buildBriefing(events: CalendarEvent[], emails: ScoredEmail[], now = new Date(), name?: string): Briefing {
+export function buildBriefing(events: CalendarEvent[], emails: ScoredEmail[], now = new Date(), name?: string, weather?: string): Briefing {
   const today = localDate(now);
   const todays = events
     .filter((e) => localDate(new Date(e.start)) === today || (e.allDay && localDate(new Date(e.start)) <= today && localDate(new Date(+new Date(e.end) - 1)) >= today))
@@ -28,6 +28,7 @@ export function buildBriefing(events: CalendarEvent[], emails: ScoredEmail[], no
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const lines: string[] = [];
+  if (weather) lines.push(`${weather}`);
 
   if (!upcoming.length) lines.push('Your calendar is clear today — no events ✦');
   else {

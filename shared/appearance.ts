@@ -10,14 +10,15 @@ export const SHAPES: Shape[] = ['star', 'chubby', 'sparkle', 'hexa', 'planet', '
 
 /** Accessories grouped by where they go. Only one per slot can be worn, different slots combine freely. */
 export const ACCESSORY_SLOTS: Record<AccessorySlot, Accessory[]> = {
-  head: ['hat', 'crown', 'wizard', 'tophat', 'halo', 'flower', 'catears', 'antenna', 'bow', 'helmet'],
+  head: ['hat', 'crown', 'wizard', 'tophat', 'halo', 'flower', 'catears', 'antenna', 'bow', 'helmet', 'santa', 'witch', 'beanie'],
   ears: ['headphones'],
   eyes: ['glasses', 'sunglasses', 'monocle'],
   neck: ['scarf', 'bowtie'],
   face: ['mustache'],
+  prop: ['umbrella'],
 };
 
-export const SLOT_ORDER: AccessorySlot[] = ['head', 'ears', 'eyes', 'neck', 'face'];
+export const SLOT_ORDER: AccessorySlot[] = ['head', 'ears', 'eyes', 'neck', 'face', 'prop'];
 
 export const SLOT_OF: Record<Accessory, AccessorySlot> = Object.fromEntries(
   SLOT_ORDER.flatMap((slot) => ACCESSORY_SLOTS[slot].map((a) => [a, slot])),

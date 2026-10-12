@@ -13,7 +13,7 @@ import { transcribe } from '../electron/voice/transcribe';
 vi.mock('electron', () => ({ app: {}, safeStorage: {}, shell: {} }));
 
 const settings: Settings = {
-  mascotName: 'Lumi', widgetMode: 'desktop', widgetView: 'mascot', skin: 'classic', customColor: '#ff6fae', colorSwatches: [], shape: 'star', accessories: [], mascotLife: true, followMouse: true, petReactions: true, sleepAfterMinutes: 3, reactToMusic: true, autoUpdate: true, autoStartOllama: false,
+  mascotName: 'Lumi', widgetMode: 'desktop', widgetView: 'mascot', skin: 'classic', customColor: '#ff6fae', colorSwatches: [], shape: 'star', accessories: [], mascotLife: true, followMouse: true, petReactions: true, dndFullscreen: true, dndMeetings: false, dndHideWidget: true, quickCapture: true, quickCaptureShortcut: 'CommandOrControl+Shift+Space', weather: true, weatherPlace: '', temperatureUnit: 'c', seasonalLook: true, reactToSystem: true, proactiveTips: true, tipFrequency: 'normal', sleepAfterMinutes: 3, reactToMusic: true, autoUpdate: true, autoStartOllama: false,
   morningBriefing: true, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', launchAtLogin: false,
   reminderLeadMinutes: [15, 5], systemNotifications: true, ollamaUrl: 'http://127.0.0.1:11434', ollamaModel: 'main',
   modelChat: '', modelTriage: '', modelWriting: '', aiEmailTriage: true, emailLookbackDays: 2,

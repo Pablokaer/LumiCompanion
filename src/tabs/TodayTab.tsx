@@ -30,7 +30,7 @@ export function TodayTab({ events, now, name, focus, focusMinutes }: { events: C
             {next.location && <> · <PinIcon width={13} height={13} /> {next.location}</>}
           </div>
           <div className="next-actions">
-            {next.meetLink && <button className="pill-btn" onClick={() => api.window.openExternal(next.meetLink!)}><VideoIcon width={15} height={15} /> Join</button>}
+            {(next.joinUrl ?? next.meetLink) && <button className="pill-btn" onClick={() => api.window.openExternal((next.joinUrl ?? next.meetLink)!)}><VideoIcon width={15} height={15} /> Join</button>}
             {next.htmlLink && <button className="pill-btn ghost" onClick={() => api.window.openExternal(next.htmlLink!)}><ExternalIcon width={15} height={15} /> Open</button>}
           </div>
         </section>

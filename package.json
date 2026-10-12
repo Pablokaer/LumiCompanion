@@ -13,6 +13,7 @@
     "start": "npm run build && electron .",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:e2e": "vitest run --config vitest.e2e.config.mts",
     "preview:ui": "vite",
     "dist": "npm run build && npm run oauth:json && electron-builder",
     "dist:win": "npm run build && npm run oauth:json && electron-builder --win",

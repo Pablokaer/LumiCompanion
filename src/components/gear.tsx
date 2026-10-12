@@ -6,7 +6,7 @@ import type { Accessory } from '../../shared/types';
  * the shape's `topOffset`; the rest are anchored to the face, which is the same in every shape.
  */
 
-const HEAD_ANCHORED: Accessory[] = ['hat', 'crown', 'wizard', 'tophat', 'halo', 'flower', 'catears', 'antenna', 'bow'];
+const HEAD_ANCHORED: Accessory[] = ['hat', 'crown', 'wizard', 'tophat', 'halo', 'flower', 'catears', 'antenna', 'bow', 'santa', 'witch', 'beanie', 'umbrella'];
 
 const PIECES: Record<Accessory, () => ReactElement> = {
   hat: () => (
@@ -126,11 +126,43 @@ const PIECES: Record<Accessory, () => ReactElement> = {
   mustache: () => (
     <path d="M76 118 Q86 108 100 116 Q114 108 124 118 Q112 128 100 120 Q88 128 76 118 Z" fill="#4a3426" stroke="#2c1d14" strokeWidth="2" strokeLinejoin="round" />
   ),
+  santa: () => (
+    <g transform="rotate(10 100 40)">
+      <path d="M78 46 Q86 6 124 14 Q132 24 126 36 L122 46 Z" fill="#e0364f" stroke="#a8222f" strokeWidth="2.5" strokeLinejoin="round" />
+      <rect x="74" y="42" width="52" height="11" rx="5.5" fill="#fff" stroke="#d9d9e6" strokeWidth="2" />
+      <circle cx="129" cy="17" r="7" fill="#fff" stroke="#d9d9e6" strokeWidth="2" />
+    </g>
+  ),
+  witch: () => (
+    <g transform="rotate(-6 100 40)">
+      <path d="M102 -26 Q98 8 76 46 L124 46 Q108 8 102 -26 Z" fill="#2a2740" stroke="#14121f" strokeWidth="2.5" strokeLinejoin="round" />
+      <ellipse cx="100" cy="46" rx="38" ry="8" fill="#2a2740" stroke="#14121f" strokeWidth="2.5" />
+      <path d="M84 33 L116 33 L119 42 L81 42 Z" fill="#ff8a2a" />
+      <rect x="95" y="34" width="10" height="7" rx="1.5" fill="#ffd84d" stroke="#b8860b" strokeWidth="1.5" />
+    </g>
+  ),
+  beanie: () => (
+    <g>
+      <path d="M72 46 Q73 8 100 8 Q127 8 128 46 Z" fill="#4a6fe0" stroke="#2f4aa8" strokeWidth="2.5" strokeLinejoin="round" />
+      <rect x="70" y="38" width="60" height="12" rx="5" fill="#2f4aa8" stroke="#233a8a" strokeWidth="2" />
+      <path d="M80 38 v12 M90 38 v12 M100 38 v12 M110 38 v12 M120 38 v12" stroke="#4a6fe0" strokeWidth="2" opacity="0.6" />
+      <circle cx="100" cy="7" r="8" fill="#fff" stroke="#d9d9e6" strokeWidth="2" />
+    </g>
+  ),
+  umbrella: () => (
+    <g>
+      <path d="M100 22 V50" stroke="#6b7280" strokeWidth="4" strokeLinecap="round" />
+      <path d="M40 24 Q100 -42 160 24 Q147 14 130 24 Q115 14 100 24 Q85 14 70 24 Q53 14 40 24 Z" fill="#3b82f6" stroke="#1d4ed8" strokeWidth="3" strokeLinejoin="round" />
+      <path d="M100 -12 V24 M100 -12 Q74 -2 70 24 M100 -12 Q126 -2 130 24" fill="none" stroke="#1d4ed8" strokeWidth="2" opacity="0.7" />
+      <circle cx="100" cy="-13" r="3.5" fill="#1d4ed8" />
+    </g>
+  ),
 };
 
 /** Draw order: neck pieces first, then ears, face and eyes, then head pieces, and the helmet's bubble last. */
 export const ACCESSORY_DRAW_ORDER: Accessory[] = ['scarf', 'bowtie', 'headphones', 'mustache', 'glasses', 'sunglasses', 'monocle',
-  'catears', 'hat', 'crown', 'wizard', 'tophat', 'halo', 'flower', 'antenna', 'bow', 'helmet'];
+  // the umbrella is drawn first among the head pieces so a hat shows underneath it
+  'umbrella', 'catears', 'hat', 'crown', 'wizard', 'tophat', 'halo', 'flower', 'antenna', 'bow', 'santa', 'witch', 'beanie', 'helmet'];
 
 export function Gear({ accessories, topOffset }: { accessories: Accessory[]; topOffset: number }) {
   return (

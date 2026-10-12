@@ -1,4 +1,6 @@
 // Types shared between the Electron main process and the React renderer.
+import type { DndState } from './dnd';
+import type { WeatherState } from './weather';
 
 export interface UserProfile {
   name: string;
@@ -23,6 +25,8 @@ export interface CalendarEvent {
   location?: string;
   description?: string;
   meetLink?: string;
+  /** A video-call link: the Meet link, or a Zoom/Teams/Webex link found in the event. */
+  joinUrl?: string;
   htmlLink?: string;
 }
 
@@ -65,13 +69,14 @@ export type WidgetMode = 'desktop' | 'onTop';
 
 export type Skin = 'classic' | 'nebula' | 'sunset' | 'mint' | 'mono' | 'custom';
 export type Shape = 'star' | 'chubby' | 'sparkle' | 'hexa' | 'planet' | 'earth' | 'moon' | 'sun' | 'comet';
-export type AccessorySlot = 'head' | 'ears' | 'eyes' | 'neck' | 'face';
+export type AccessorySlot = 'head' | 'ears' | 'eyes' | 'neck' | 'face' | 'prop';
 export type Accessory =
-  | 'hat' | 'crown' | 'wizard' | 'tophat' | 'halo' | 'flower' | 'catears' | 'antenna' | 'bow' | 'helmet'
+  | 'hat' | 'crown' | 'wizard' | 'tophat' | 'halo' | 'flower' | 'catears' | 'antenna' | 'bow' | 'helmet' | 'santa' | 'witch' | 'beanie'
   | 'headphones'
   | 'glasses' | 'sunglasses' | 'monocle'
   | 'scarf' | 'bowtie'
-  | 'mustache';
+  | 'mustache'
+  | 'umbrella';
 
 /** What the shrunken widget shows: the mascot, a month calendar or a day agenda. */
 export type WidgetView = 'mascot' | 'month' | 'day';
@@ -93,6 +98,29 @@ export interface Settings {
   mascotLife: boolean;
   /** Her eyes follow the mouse cursor around the screen. */
   followMouse: boolean;
+  /** Do not disturb: stay quiet while a full-screen app, presentation or Focus Assist is on (Windows). */
+  dndFullscreen: boolean;
+  /** Do not disturb: stay quiet during meetings on the calendar. */
+  dndMeetings: boolean;
+  /** Hide the widget entirely while a full-screen app is in front. */
+  dndHideWidget: boolean;
+  /** Manual "quiet until" time, epoch ms. */
+  dndUntil?: number;
+  /** A global shortcut opens a small window to add an event by typing it. */
+  quickCapture: boolean;
+  quickCaptureShortcut: string;
+  /** Show the weather for where you are, and let it change how she looks. */
+  weather: boolean;
+  /** A city to use instead of the location guessed from your IP address; empty means automatic. */
+  weatherPlace: string;
+  temperatureUnit: 'c' | 'f';
+  /** Dress for the weather and the season (umbrella, scarf, festive hats) and show falling rain, snow or leaves. */
+  seasonalLook: boolean;
+  /** React to battery, charging, the network, locking the screen and audio devices. */
+  reactToSystem: boolean;
+  /** Occasional gentle tips: water, stretching, resting your eyes, bedtime. */
+  proactiveTips: boolean;
+  tipFrequency: 'rare' | 'normal' | 'often';
   /** She reacts when the mouse passes over her: laughs, blushes, purrs, tries to bite. */
   petReactions: boolean;
   /** Minutes without keyboard/mouse use before the star falls asleep; 0 = never. */
@@ -185,6 +213,14 @@ export interface UpdateState {
   notifyOnly: boolean;
 }
 
+export interface CaptureResult {
+  event: NewEventInput;
+  /** Whether a date or time was found. When false the form is shown with just the title. */
+  understood: boolean;
+  /** How it was understood: by simple rules, with the local AI, or not at all. */
+  via: 'rules' | 'ai' | 'none';
+}
+
 export interface ConfirmRequest {
   id: string;
   kind: 'create_event';
@@ -243,6 +279,23 @@ export interface LumiApi {
     start(minutes: number): Promise<FocusState>;
     stop(): Promise<void>;
   };
+  dnd: {
+    get(): Promise<DndState>;
+    /** Quiet until the given time (epoch ms), or null to turn the manual pause off. */
+    set(untilMs: number | null): Promise<DndState>;
+  };
+  weather: {
+    get(): Promise<WeatherState>;
+    refresh(): Promise<WeatherState>;
+  };
+  capture: {
+    /** Understands a line of text ("lunch tomorrow 1pm") as an event. */
+    parse(text: string): Promise<CaptureResult>;
+    /** Closes the quick-capture window. */
+    close(): Promise<void>;
+    /** Changes the global shortcut; resolves with an error message when it cannot be used. */
+    setShortcut(accelerator: string): Promise<{ ok: boolean; error?: string }>;
+  };
   updates: {
     getState(): Promise<UpdateState>;
     /** Checks now. */
@@ -288,7 +341,7 @@ export interface LumiApi {
     openExternal(url: string): Promise<void>;
   };
   on(
-    channel: 'reminder' | 'data:updated' | 'agent:confirm' | 'agent:status' | 'auth:changed' | 'settings:changed' | 'focus:changed' | 'briefing' | 'activity' | 'update:state' | 'cursor',
+    channel: 'reminder' | 'data:updated' | 'agent:confirm' | 'agent:status' | 'auth:changed' | 'settings:changed' | 'focus:changed' | 'briefing' | 'activity' | 'update:state' | 'cursor' | 'dnd:state' | 'weather:state' | 'system' | 'quick:show',
     listener: (payload: any) => void,
   ): () => void;
 }
