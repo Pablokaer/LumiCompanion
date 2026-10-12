@@ -1,6 +1,7 @@
 import { app, safeStorage } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
+import { migrateAppearance } from '../shared/appearance';
 import type { Settings } from '../shared/types';
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -8,7 +9,11 @@ export const DEFAULT_SETTINGS: Settings = {
   widgetMode: 'desktop',
   widgetView: 'mascot',
   skin: 'classic',
-  accessory: 'none',
+  shape: 'star',
+  accessories: [],
+  mascotLife: true,
+  sleepAfterMinutes: 3,
+  reactToMusic: true,
   autoStartOllama: true,
   morningBriefing: true,
   briefingTime: '08:00',
@@ -47,7 +52,7 @@ let settingsCache: Settings | undefined;
 
 export function getSettings(): Settings {
   if (!settingsCache) {
-    settingsCache = { ...DEFAULT_SETTINGS, ...(readJson<Partial<Settings>>(userFile('settings.json')) ?? {}) };
+    settingsCache = { ...DEFAULT_SETTINGS, ...migrateAppearance(readJson<Record<string, unknown>>(userFile('settings.json')) ?? {}) } as Settings;
   }
   return settingsCache;
 }

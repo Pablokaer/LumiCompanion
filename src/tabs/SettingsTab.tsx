@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
-import type { Accessory, AuthState, OllamaStatus, Settings, Skin, WidgetView } from '../../shared/types';
+import { ACCESSORY_SLOTS, SLOT_ORDER, toggleAccessory } from '../../shared/appearance';
+import type { Accessory, AuthState, OllamaStatus, Settings, Shape, Skin, WidgetView } from '../../shared/types';
 import { api } from '../api';
-import { ACCESSORIES, SKINS } from '../appearance';
+import { ACCESSORY_LABEL, SHAPE_INFO, SKINS, SLOT_LABEL } from '../appearance';
+import { Mascot } from '../components/Mascot';
+import { useLife } from '../mascotLife';
 
 const LEAD_OPTIONS = [60, 30, 15, 10, 5, 1];
 
@@ -21,6 +24,7 @@ export function SettingsTab({ settings, onSettings, auth, onSignedOut }: {
   settings: Settings; onSettings(s: Settings): void; auth: AuthState; onSignedOut(a: AuthState): void;
 }) {
   const [ollama, setOllama] = useState<OllamaStatus>();
+  const life = useLife();
   const [ollamaUrl, setOllamaUrl] = useState(settings.ollamaUrl);
   const [mascotName, setMascotName] = useState(settings.mascotName);
 
@@ -59,6 +63,7 @@ export function SettingsTab({ settings, onSettings, auth, onSignedOut }: {
 
       <section className="card">
         <h3>Appearance</h3>
+        <div className="appearance-preview"><Mascot size={104} title="Preview" /></div>
         <div className="field">
           <span>Star colour</span>
           <div className="chips" role="radiogroup" aria-label="Star colour">
@@ -70,13 +75,57 @@ export function SettingsTab({ settings, onSettings, auth, onSignedOut }: {
           </div>
         </div>
         <div className="field">
-          <span>Accessory</span>
-          <div className="chips" role="radiogroup" aria-label="Accessory">
-            {(Object.keys(ACCESSORIES) as Accessory[]).map((id) => (
-              <button key={id} role="radio" aria-checked={settings.accessory === id} className={`chip${settings.accessory === id ? ' on' : ''}`} onClick={() => update({ accessory: id })}>{ACCESSORIES[id]}</button>
-            ))}
-          </div>
+          <span>Shape</span>
+          {(['Stars', 'Space'] as const).map((group) => (
+            <div key={group} className="chips" role="radiogroup" aria-label={`${group} shapes`}>
+              {(Object.keys(SHAPE_INFO) as Shape[]).filter((id) => SHAPE_INFO[id].group === group).map((id) => (
+                <button key={id} role="radio" aria-checked={settings.shape === id} className={`chip${settings.shape === id ? ' on' : ''}`} onClick={() => update({ shape: id })}>
+                  <span aria-hidden="true">{SHAPE_INFO[id].icon}</span> {SHAPE_INFO[id].label}
+                </button>
+              ))}
+            </div>
+          ))}
         </div>
+        <div className="field">
+          <span>Accessories <small className="hint">one per spot, mix and match</small></span>
+          {SLOT_ORDER.map((slot) => (
+            <div key={slot} className="slot-row">
+              <span className="slot-label">{SLOT_LABEL[slot]}</span>
+              <div className="chips">
+                {(ACCESSORY_SLOTS[slot] as Accessory[]).map((id) => {
+                  const on = settings.accessories.includes(id);
+                  return (
+                    <button key={id} aria-pressed={on} className={`chip${on ? ' on' : ''}`} onClick={() => update({ accessories: toggleAccessory(settings.accessories, id) })}>{ACCESSORY_LABEL[id]}</button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          {settings.accessories.length > 0 && <button className="pill-btn ghost small" onClick={() => update({ accessories: [] })}>Take everything off</button>}
+        </div>
+      </section>
+
+      <section className="card">
+        <h3>Life</h3>
+        <Toggle label="Lively star" hint="She smiles, hops, waves, hums and looks around on her own." checked={settings.mascotLife} onChange={(v) => update({ mascotLife: v })} />
+        <Toggle label="Sleep when I am away" hint="Zzz… when the keyboard and mouse have been idle." checked={settings.sleepAfterMinutes > 0} onChange={(v) => update({ sleepAfterMinutes: v ? 3 : 0 })} />
+        {settings.sleepAfterMinutes > 0 && (
+          <label className="field">
+            <span>Fall asleep after</span>
+            <select value={settings.sleepAfterMinutes} onChange={(e) => update({ sleepAfterMinutes: Number(e.target.value) })}>
+              {[...new Set([1, 3, 5, 10, 15, 30, settings.sleepAfterMinutes])].sort((a, b) => a - b).map((m) => <option key={m} value={m}>{m} min</option>)}
+            </select>
+          </label>
+        )}
+        <Toggle label="Dance to music" hint="Detects music playing on this computer and dances to its tempo. Audio is analysed in memory only, never recorded or sent." checked={settings.reactToMusic} onChange={(v) => update({ reactToMusic: v })} />
+        {settings.reactToMusic && (
+          <p className={`hint${life.musicStatus === 'unavailable' ? ' warn' : ''}`}>
+            {life.musicStatus === 'unavailable' ? `Music detection is unavailable: ${life.musicError ?? 'audio capture failed'}`
+              : life.dancing ? `♪ Dancing to about ${life.bpm} BPM`
+              : life.musicStatus === 'listening' ? 'Listening for music… (steady beats only; speech is ignored)'
+              : 'Starting…'}
+          </p>
+        )}
       </section>
 
       <section className="card">

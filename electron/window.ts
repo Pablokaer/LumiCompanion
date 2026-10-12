@@ -46,6 +46,7 @@ export function createWidgetWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
       spellcheck: false,
+      backgroundThrottling: false,
     },
   });
 

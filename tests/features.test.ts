@@ -13,7 +13,7 @@ import { transcribe } from '../electron/voice/transcribe';
 vi.mock('electron', () => ({ app: {}, safeStorage: {}, shell: {} }));
 
 const settings: Settings = {
-  mascotName: 'Lumi', widgetMode: 'desktop', widgetView: 'mascot', skin: 'classic', accessory: 'none', autoStartOllama: false,
+  mascotName: 'Lumi', widgetMode: 'desktop', widgetView: 'mascot', skin: 'classic', shape: 'star', accessories: [], mascotLife: true, sleepAfterMinutes: 3, reactToMusic: true, autoStartOllama: false,
   morningBriefing: true, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', launchAtLogin: false,
   reminderLeadMinutes: [15, 5], systemNotifications: true, ollamaUrl: 'http://127.0.0.1:11434', ollamaModel: 'main',
   modelChat: '', modelTriage: '', modelWriting: '', aiEmailTriage: true, emailLookbackDays: 2,

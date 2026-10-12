@@ -64,7 +64,14 @@ export interface ScoredEmail extends EmailSummary {
 export type WidgetMode = 'desktop' | 'onTop';
 
 export type Skin = 'classic' | 'nebula' | 'sunset' | 'mint' | 'mono';
-export type Accessory = 'none' | 'hat' | 'glasses' | 'crown' | 'bow';
+export type Shape = 'star' | 'chubby' | 'sparkle' | 'hexa' | 'planet' | 'earth' | 'moon' | 'sun' | 'comet';
+export type AccessorySlot = 'head' | 'ears' | 'eyes' | 'neck' | 'face';
+export type Accessory =
+  | 'hat' | 'crown' | 'wizard' | 'tophat' | 'halo' | 'flower' | 'catears' | 'antenna' | 'bow' | 'helmet'
+  | 'headphones'
+  | 'glasses' | 'sunglasses' | 'monocle'
+  | 'scarf' | 'bowtie'
+  | 'mustache';
 
 /** What the shrunken widget shows: the mascot, a month calendar or a day agenda. */
 export type WidgetView = 'mascot' | 'month' | 'day';
@@ -74,7 +81,16 @@ export interface Settings {
   widgetMode: WidgetMode;
   widgetView: WidgetView;
   skin: Skin;
-  accessory: Accessory;
+  /** The body: a star variant or a space object. */
+  shape: Shape;
+  /** What she is wearing: at most one accessory per slot (head, ears, eyes, neck, face). */
+  accessories: Accessory[];
+  /** The star does spontaneous things (smiles, hops, waves…) when idle. */
+  mascotLife: boolean;
+  /** Minutes without keyboard/mouse use before the star falls asleep; 0 = never. */
+  sleepAfterMinutes: number;
+  /** Detect music playing on the computer and dance to its tempo. */
+  reactToMusic: boolean;
   /** Start `ollama serve` automatically when it is installed but not running. */
   autoStartOllama: boolean;
   morningBriefing: boolean;
@@ -202,6 +218,10 @@ export interface LumiApi {
     start(minutes: number): Promise<FocusState>;
     stop(): Promise<void>;
   };
+  music: {
+    /** Asks the main process to start system-audio listening (it supplies the user gesture Chromium needs). */
+    requestStart(): Promise<void>;
+  };
   briefing: {
     /** Shows the morning briefing right now (also used for previewing). */
     show(): Promise<void>;
@@ -234,7 +254,7 @@ export interface LumiApi {
     openExternal(url: string): Promise<void>;
   };
   on(
-    channel: 'reminder' | 'data:updated' | 'agent:confirm' | 'agent:status' | 'auth:changed' | 'settings:changed' | 'focus:changed' | 'briefing',
+    channel: 'reminder' | 'data:updated' | 'agent:confirm' | 'agent:status' | 'auth:changed' | 'settings:changed' | 'focus:changed' | 'briefing' | 'activity',
     listener: (payload: any) => void,
   ): () => void;
 }

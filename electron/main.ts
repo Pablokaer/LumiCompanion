@@ -1,4 +1,4 @@
-import { app, dialog, globalShortcut, ipcMain, Notification, session, shell } from 'electron';
+import { app, desktopCapturer, dialog, globalShortcut, ipcMain, Notification, powerMonitor, session, shell } from 'electron';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import type {
@@ -21,6 +21,10 @@ import { createTray, rebuildTrayMenu } from './tray';
 import { applyWidgetMode, createWidgetWindow, getWindow, peek, refreshWindowSize, setWindowMode, toggleWindow } from './window';
 
 loadDotEnv(path.join(__dirname, '../..'));
+
+// The widget sits behind other windows; without this Chromium treats it as hidden and throttles its
+// timers and animation frames, which would make the dancing stutter.
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -74,7 +78,17 @@ async function bootstrap() {
   if (process.platform === 'darwin') app.dock?.hide(); // live in the menu bar, not the dock
 
   // Microphone access is only granted to Lumi's own window, for voice input.
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(permission === 'media'));
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) =>
+    callback(permission === 'media' || (permission === 'display-capture' && getSettings().reactToMusic)));
+  // Music detection listens to the system's audio output ("loopback"). Only audio is granted, and only
+  // while the setting is on; the renderer drops the video track at once and analyses audio in memory.
+  session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
+    if (!getSettings().reactToMusic) { callback({}); return; }
+    try {
+      const sources = await desktopCapturer.getSources({ types: ['screen'] });
+      callback({ video: sources[0], audio: 'loopback' });
+    } catch { callback({}); }
+  }, { useSystemPicker: false });
 
   registerIpc();
   createWidgetWindow();
@@ -104,6 +118,8 @@ async function bootstrap() {
     }
   });
   setInterval(checkBriefing, 60_000);
+  // Tell the star how long the computer has been idle so she can fall asleep (and wake up).
+  setInterval(() => send('activity', { idleSeconds: powerMonitor.getSystemIdleTime() }), 5_000);
   void tryStartOllama();
 
   if ((await getAuthState()).signedIn) sync.start();
@@ -167,6 +183,15 @@ function registerIpc() {
           setTimeout(() => { if (pendingConfirms.delete(full.id)) resolve(false); }, 5 * 60_000);
         }),
     });
+  });
+
+  // --- Music detection ---
+  ipcMain.handle('music:requestStart', () => {
+    if (!getSettings().reactToMusic) return;
+    // `true` simulates a user gesture, which Chromium requires for getDisplayMedia.
+    return getWindow()?.webContents
+      .executeJavaScript('window.__lumiMusicStart && window.__lumiMusicStart()', true)
+      .then(() => undefined, () => undefined);
   });
 
   // --- Focus timer ---

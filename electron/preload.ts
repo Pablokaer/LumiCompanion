@@ -3,7 +3,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { LumiApi } from '../shared/types';
 
-const EVENTS = new Set(['reminder', 'data:updated', 'agent:confirm', 'agent:status', 'auth:changed', 'settings:changed', 'focus:changed', 'briefing']);
+const EVENTS = new Set(['reminder', 'data:updated', 'agent:confirm', 'agent:status', 'auth:changed', 'settings:changed', 'focus:changed', 'briefing', 'activity']);
 
 const api: LumiApi = {
   auth: {
@@ -26,6 +26,9 @@ const api: LumiApi = {
     get: () => ipcRenderer.invoke('focus:get'),
     start: (minutes) => ipcRenderer.invoke('focus:start', minutes),
     stop: () => ipcRenderer.invoke('focus:stop'),
+  },
+  music: {
+    requestStart: () => ipcRenderer.invoke('music:requestStart'),
   },
   briefing: {
     show: () => ipcRenderer.invoke('briefing:show'),

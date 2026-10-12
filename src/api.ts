@@ -25,7 +25,7 @@ function createMockApi(): LumiApi {
   const params = new URLSearchParams(location.search);
   let auth: AuthState = { configured: true, signedIn: params.get('signedIn') !== '0', profile: { name: 'Pablo', email: 'pablo@example.com' } };
   let settings: Settings = {
-    mascotName: 'Lumi', widgetMode: 'desktop', widgetView: (params.get('view') as Settings['widgetView']) ?? 'mascot', skin: 'classic', accessory: 'none', autoStartOllama: true, morningBriefing: true, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', modelChat: '', modelTriage: '', modelWriting: '', launchAtLogin: true, reminderLeadMinutes: [15, 5], systemNotifications: true,
+    mascotName: 'Lumi', widgetMode: 'desktop', widgetView: (params.get('view') as Settings['widgetView']) ?? 'mascot', skin: 'classic', shape: (params.get('shape') as Settings['shape']) ?? 'star', accessories: (params.get('acc')?.split(',').filter(Boolean) ?? []) as Settings['accessories'], mascotLife: true, sleepAfterMinutes: 3, reactToMusic: true, autoStartOllama: true, morningBriefing: true, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', modelChat: '', modelTriage: '', modelWriting: '', launchAtLogin: true, reminderLeadMinutes: [15, 5], systemNotifications: true,
     ollamaUrl: 'http://127.0.0.1:11434', ollamaModel: 'llama3.1:8b', aiEmailTriage: true, emailLookbackDays: 2,
   };
   const events: CalendarEvent[] = [
@@ -97,6 +97,9 @@ function createMockApi(): LumiApi {
       respondConfirm: async () => undefined,
       ollamaStatus: async () => ({ running: true, models: ['llama3.1:8b', 'qwen2.5:7b'] }),
     },
+    music: {
+      requestStart: async () => undefined,
+    },
     focus: {
       get: async () => focusState,
       start: async (minutes) => { focusState = { endsAt: Date.now() + minutes * 60_000, minutes }; emit('focus:changed', focusState); return focusState; },
@@ -151,6 +154,16 @@ function createMockApi(): LumiApi {
     on(channel, listener) {
       if (!listeners.has(channel)) listeners.set(channel, new Set());
       listeners.get(channel)!.add(listener);
+      if (channel === 'activity') {
+        // Browser preview: idle time = time since the last key or mouse movement (?sleep=1 starts asleep).
+        let lastInput = params.get('sleep') === '1' ? Date.now() - 3_600_000 : Date.now();
+        const touch = () => { lastInput = Date.now(); listener({ idleSeconds: 0 }); };
+        window.addEventListener('pointermove', touch);
+        window.addEventListener('keydown', touch);
+        const timer = window.setInterval(() => listener({ idleSeconds: (Date.now() - lastInput) / 1000 }), 5000);
+        window.setTimeout(() => listener({ idleSeconds: (Date.now() - lastInput) / 1000 }), 300);
+        return () => { window.clearInterval(timer); window.removeEventListener('pointermove', touch); window.removeEventListener('keydown', touch); listeners.get(channel)!.delete(listener); };
+      }
       if (channel === 'reminder' && params.get('reminder') === '1') {
         setTimeout(() => listener({ event: events[0], minutesUntil: 5, message: '“Team stand-up” starts in 5 minutes.' }), 1500);
       }

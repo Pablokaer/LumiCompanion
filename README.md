@@ -8,6 +8,7 @@ Lumi is a little blue star that lives on your Windows or Mac desktop. It watches
 
 - **Desktop widget:** a frameless, transparent window that sits on the desktop (or always on top), lives in the tray/menu bar and starts with your computer.
 - **Mascot:** Lumi has moods. Idle, happy, *alert* (shakes and glows orange before a meeting), thinking (while the agent works) and sleepy (late at night).
+- **A star that feels alive:** she is never still. She smiles, hops, waves, spins, hums, stretches and looks around on her own; falls asleep (closed eyes, floating "Zzz") when you stop using the computer and stretches when you come back; and **dances to the beat** when music is playing on the computer (see below).
 - **Sign in with Google:** one login gives access to Calendar and Gmail. It uses OAuth with PKCE and a loopback redirect, and tokens are encrypted with the OS keychain (`safeStorage`).
 - **Reminders:** configurable lead times (default 15 and 5 min). Lumi peeks out in front of your windows and shows a system notification.
 - **Important emails:** a heuristic score (Gmail "Important", starred, personal, direct-to-you, deadline/payment/meeting keywords in EN + PT, newsletter/promo penalties), blended with an optional local-AI triage.
@@ -20,7 +21,7 @@ Lumi is a little blue star that lives on your Windows or Mac desktop. It watches
 - **Email → event:** "Make event" looks for a meeting or deadline in an email and opens a prefilled form. You confirm before anything is created.
 - **Add events from the calendar:** select a day (or double-click it) and use "Add event".
 - **Voice input:** click the microphone in Chat and speak. Transcription runs locally with Whisper (see below).
-- **Star skins and accessories:** five colour skins (they re-theme the whole app) and a few accessories (party hat, glasses, crown, bow). Settings → Appearance.
+- **Shapes, skins and accessories:** pick her body from four star shapes (star, chubby, sparkle, six-point) or space objects (ringed planet, Earth, Moon, Sun, comet), five colour skins (they re-theme the whole app), and mix and match 17 accessories by spot: **head** (party hat, crown, wizard hat, top hat, halo, flower, cat ears, antenna, bow, space helmet), **ears** (headphones), **eyes** (glasses, sunglasses, monocle), **neck** (scarf, bow tie) and **face** (mustache). One accessory per spot, different spots combine. Settings → Appearance has a live preview.
 - **Models per task:** use a small model for email triage and a larger one for writing. Settings → Local AI.
 - **Ollama starts itself:** if it is installed but stopped, Lumi launches it (can be turned off).
 - **Answer assignments into a Google Doc:** attach a `.docx`, `.pdf`, `.txt` or `.md` file of questions in Chat. Lumi finds the questions, researches real sources, writes academic answers and saves them as a Google Doc with in-text citations and a reference list in ABNT or APA (see below).
@@ -64,6 +65,26 @@ To work on the UI only, with sample data and no Google or Ollama needed, run `np
 By default Lumi starts `ollama serve` for you when Ollama is installed but not running (Settings → Local AI → "Start Ollama automatically"). It only does this for a local server URL and leaves Ollama running when you quit Lumi.
 
 If Ollama is off, Calendar, Gmail, reminders and the heuristic email ranking still work. Only the chat and the AI triage need the model.
+
+## A star that feels alive
+
+**Spontaneous actions.** Every few seconds Lumi picks something to do: smile, hop, look left and right, wave, wiggle, twinkle, hum (with music notes), stretch, peek, spin or cheer. She never repeats the same action twice in a row and stays calm (no random actions) while a reminder, the chat agent or a focus session is active. Small avatars (the chat) stay still.
+
+**Smooth transitions.** Nothing snaps. The body movement (floating, breathing, bouncing, shaking, dancing) comes from one motion engine that blends poses with weights gliding toward the current state, so falling asleep, waking up and starting or stopping a dance are crossfades. Facial expressions are all drawn at once and faded in and out, the halo colour and glow ease between moods, and music notes and "Zzz" fade in and out. A spontaneous action is never cut short: if something important happens mid-action she finishes it (every action starts and ends at rest) and only the next one is held back.
+
+**Sleeping.** After the keyboard and mouse have been idle for a few minutes (default 3) she falls asleep, and wakes with a yawn and a stretch when you are back. Idle time comes from the operating system. Playing music wakes her up to dance.
+
+**Dancing to music.** Lumi listens to what the computer is playing (the system's audio output, "loopback" capture) and works out whether it is music and at what tempo:
+
+- It analyses short chunks of audio **in memory only**. Nothing is recorded, saved or sent anywhere, and only the audio track is requested (the video track is dropped immediately).
+- Detection needs a clear, steady beat and takes about 5 seconds to lock on. Speech, notification sounds and videos without a beat are ignored. Very ambient or beat-less music will not trigger it.
+- The dance is posed on every animation frame from the detected beat clock, so she bounces, sways, hops and twirls **on the beat** and follows tempo changes. Tempos above 150 BPM are danced at half-time so she does not look frantic. The moves change every four beats, ending with a twirl.
+- Her bubble shows the detected tempo (for example "♪ 128 BPM").
+- Settings → Life lets you turn each behaviour off, change the sleep delay, and shows whether music detection is listening or unavailable.
+- **Platform notes:** works on Windows out of the box. macOS 13+ may ask for Screen Recording permission (Electron's system-audio capture requires it) and Linux needs PulseAudio/PipeWire. If capture is not possible the status in Settings says so and everything else keeps working.
+- With "reduce motion" enabled in the OS, the spontaneous actions and dance are skipped.
+
+Browser preview (`npm run preview:ui`) extras: `?gallery=1` shows every shape and accessory (add `&skin=sunset` or `&mood=happy`), `?shape=planet&acc=wizard,sunglasses` previews a look, and for inspecting the animations: `?sleep=1` (start asleep), `?music=1` (fake 120 BPM music) and `?action=wave` (pin one action: `smile`, `hop`, `look`, `wave`, `spin`, `wiggle`, `stretch`, `twinkle`, `hum`, `peek`, `cheer`, `wake`).
 
 ## Voice input
 
@@ -111,7 +132,8 @@ Limitations: a small local model can still write weak or wrong prose, and OpenAl
 | Start a focus session | Today tab → Focus session |
 | Add an event on a day | Calendar tab → select a day → Add event (or double-click the day) |
 | Draft a reply / make an event from an email | Inbox → buttons under each email |
-| Change star colour or accessory | Settings → Appearance |
+| Change her shape, colour or accessories | Settings → Appearance |
+| Turn off random actions, sleeping or dancing | Settings → Life |
 | Preview the morning briefing | Settings → Morning briefing → Preview now |
 | Move it | Drag the widget. The position is remembered |
 
@@ -167,14 +189,21 @@ electron/              Main process (Node)
   voice/               transcribe.ts (local Whisper speech-to-text)
   services/            sync.ts (polling), reminders.ts, emailScoring.ts, time.ts, briefing.ts, focus.ts
 shared/types.ts        Types shared by main + renderer
+shared/appearance.ts   Shape and accessory tables, slot rules and settings migration
 src/                   React renderer (space UI)
-  components/          Mascot (SVG star), Starfield (canvas), CompactView, CalendarWidget, MonthCalendar, DayAgenda, QuickAdd, FocusCard, BriefingCard, Panel, LoginScreen
+  components/          Mascot (SVG star), shapes (body shapes), gear (accessories), Starfield (canvas), CompactView, CalendarWidget, MonthCalendar, DayAgenda, QuickAdd, FocusCard, BriefingCard, Panel, LoginScreen
   tabs/                Today, Calendar, Inbox, Chat, Settings
   calendar.ts          Pure date helpers (month grid, events by day)
-  appearance.tsx       Star skins, accessories and the theme context
+  appearance.tsx       Skins, shape and accessory catalogue, and the theme context
+  Gallery.tsx          Browser-preview gallery of every shape and accessory (`?gallery=1`)
+  behavior.ts          Pure logic for the star's spontaneous actions
+  dance.ts             Pure choreography: pose for a position in the beat
+  motion.ts            Motion engine: blends float/breathe/bounce/shake/dance poses with smoothly changing weights
+  mascotLife.tsx       Hooks that decide what the star is doing (sleep, dance, actions) and start music listening
+  music/               beat.ts (tempo + beat detection), listener.ts (system-audio capture and analysis)
   voice.ts             Microphone recording (16 kHz mono) for voice input
   api.ts               window.lumi + a mock for browser preview
-tests/                 Unit tests (core, docs, calendar, features)
+tests/                 Unit tests (core, docs, calendar, features, music, life, motion, appearance)
 scripts/oauth-json.mjs Builds google-oauth.json from .env or environment variables for installers
 .github/workflows/     CI (ci.yml) and release builds (release.yml)
 ```
@@ -192,6 +221,7 @@ scripts/oauth-json.mjs Builds google-oauth.json from .env or environment variabl
 - The Docs permission (`documents`) is used only to create the documents you ask for. Only files you pick in the file dialog are read.
 - The Gmail compose permission (`gmail.compose`) is used only to save drafts you ask for. Lumi never sends email.
 - The assignment feature sends short search queries (not your files) to OpenAlex.
+- Music detection only runs while "Dance to music" is on. It analyses the system audio output in memory; audio is never stored or sent, and the grant is limited to audio of Lumi's own window.
 - Voice is transcribed locally. The only network access is the one-time download of the speech model from Hugging Face. The microphone permission is granted only to Lumi's own window.
 
 ## Known limitations / next steps
@@ -203,4 +233,6 @@ scripts/oauth-json.mjs Builds google-oauth.json from .env or environment variabl
 - Voice input records up to 60 seconds, and Whisper-base can mishear names. Larger Whisper models would be more accurate but slower.
 - Email → event and the automatic answer review depend on the local model's judgement. Always check the result.
 - The focus timer is not saved across restarts.
+- Music detection is tuned to avoid false positives (speech is ignored), so music with a weak or irregular beat may not make her dance. The beat is estimated from the audio that is captured, so on some setups the moves can be a few tens of milliseconds early or late.
+- Sleep detection relies on the OS idle timer; on Linux it needs an X11 session (it may not work on some Wayland setups).
 - Ideas: a daily morning briefing, snooze on reminders, marking emails as read or starred (needs `gmail.modify`), Lumi skins, multi-account support, and a streaming chat.

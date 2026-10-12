@@ -4,6 +4,7 @@ import type {
 } from '../shared/types';
 import { api } from './api';
 import { AppearanceProvider, skinVars } from './appearance';
+import { ACTION_LINES } from './behavior';
 import { CalendarWidget } from './components/CalendarWidget';
 import { CompactView } from './components/CompactView';
 import { LoginScreen } from './components/LoginScreen';
@@ -11,6 +12,7 @@ import type { Mood } from './components/Mascot';
 import { Panel, type Tab } from './components/Panel';
 import { Starfield } from './components/Starfield';
 import { fmtTime, greeting, isNight, nextEvent } from './format';
+import { LifeProvider, useMascotLife, useMusic } from './mascotLife';
 
 export interface ChatState {
   messages: ChatMessage[];
@@ -31,6 +33,7 @@ export default function App() {
   const [chat, setChat] = useState<ChatState>({ messages: [], status: { state: 'idle' } });
   const [focus, setFocus] = useState<FocusState>();
   const [briefing, setBriefing] = useState<Briefing>();
+  const [idleSeconds, setIdleSeconds] = useState(0);
   const reminderTimer = useRef<number | undefined>(undefined);
 
   // ---- bootstrapping & subscriptions ----
@@ -45,6 +48,7 @@ export default function App() {
       api.on('settings:changed', () => api.settings.get().then(setSettings)),
       api.on('focus:changed', (f?: FocusState) => { setFocus(f ?? undefined); if (!f) setHappyUntil(Date.now() + 6000); }),
       api.on('briefing', (b: Briefing) => setBriefing(b)),
+      api.on('activity', (a: { idleSeconds: number }) => setIdleSeconds(a.idleSeconds)),
       api.on('agent:status', (status: AgentStatus) => setChat((c) => ({ ...c, status }))),
       api.on('agent:confirm', (confirm: ConfirmRequest) => {
         setChat((c) => ({ ...c, confirm }));
@@ -85,6 +89,18 @@ export default function App() {
     return 'idle';
   }, [reminder, chat.status.state, focus, happyUntil, now, minutesToNext]);
 
+  // ---- the star's life: music, sleep and spontaneous actions ----
+  const reactToMusic = settings?.reactToMusic ?? false;
+  const music = useMusic(reactToMusic);
+  const life = useMascotLife({
+    lively: settings?.mascotLife ?? true,
+    sleepAfterMinutes: settings?.sleepAfterMinutes ?? 3,
+    idleSeconds,
+    music,
+    reactToMusic,
+    calm: !!reminder || chat.status.state !== 'idle' || !!focus,
+  });
+
   const name = settings?.mascotName ?? 'Lumi';
   const speech = useMemo(() => {
     const lines: string[] = [];
@@ -92,6 +108,10 @@ export default function App() {
     if (chat.status.state !== 'idle') return ['Thinking among the stars…'];
     if (briefing) return [briefing.title, ...briefing.lines.slice(0, 5).map((l) => l.replace(/^•\s*/, ''))];
     if (focus) return [`Focus time — ${Math.max(1, Math.ceil((focus.endsAt - Date.now()) / 60_000))} min left ✦`];
+    if (life.sleeping) return ['Zzz… 💤'];
+    if (life.dancing) return [`♪ ${life.bpm} BPM — I love this one!`, 'Dance with me! ✦'];
+    const actionLine = ACTION_LINES[life.action];
+    if (actionLine) return [actionLine];
     if (upcoming && minutesToNext <= 60) lines.push(`“${upcoming.title}” ${minutesToNext <= 0 ? 'is happening now' : `in ${minutesToNext} min`} ✦`);
     else if (upcoming) lines.push(`Next up: ${upcoming.title} at ${fmtTime(upcoming.start)}`);
     if (highEmails.length) lines.push(`${highEmails.length} important email${highEmails.length > 1 ? 's' : ''} waiting for you`);
@@ -99,27 +119,30 @@ export default function App() {
     lines.push(`${greeting(now)}${first ? `, ${first}` : ''}!`);
     if (!upcoming) lines.push('Your sky is clear — no more events today 🌌');
     return lines;
-  }, [reminder, briefing, focus, chat.status.state, upcoming, minutesToNext, highEmails.length, auth?.profile?.name, now]);
+  }, [reminder, briefing, focus, life.sleeping, life.dancing, life.bpm, life.action, chat.status.state, upcoming, minutesToNext, highEmails.length, auth?.profile?.name, now]);
 
   const poke = () => setHappyUntil(Date.now() + 2500);
 
   if (!auth || !settings) return <div className="shell loading"><Starfield /></div>;
 
-  const appearance = { skin: settings.skin, accessory: settings.accessory };
+  const appearance = { skin: settings.skin, shape: settings.shape, accessories: settings.accessories };
 
   if (!auth.signedIn) {
     return (
       <AppearanceProvider value={appearance}>
-        <div className="shell expanded" style={skinVars(settings.skin)}>
-          <Starfield />
-          <LoginScreen auth={auth} mascotName={name} onSignedIn={setAuth} />
-        </div>
+        <LifeProvider value={life}>
+          <div className="shell expanded" style={skinVars(settings.skin)}>
+            <Starfield />
+            <LoginScreen auth={auth} mascotName={name} onSignedIn={setAuth} />
+          </div>
+        </LifeProvider>
       </AppearanceProvider>
     );
   }
 
   return (
     <AppearanceProvider value={appearance}>
+    <LifeProvider value={life}>
     <div className={`shell ${mode}${reminder ? ' has-reminder' : ''}`} style={skinVars(settings.skin)}>
       {mode === 'expanded' && <Starfield />}
       {mode === 'compact' && settings.widgetView !== 'mascot' ? (
@@ -171,6 +194,7 @@ export default function App() {
         />
       )}
     </div>
+    </LifeProvider>
     </AppearanceProvider>
   );
 }
