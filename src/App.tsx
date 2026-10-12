@@ -11,7 +11,9 @@ import { LoginScreen } from './components/LoginScreen';
 import type { Mood } from './components/Mascot';
 import { Panel, type Tab } from './components/Panel';
 import { Starfield } from './components/Starfield';
-import { fmtTime, greeting, isNight, nextEvent } from './format';
+import { moodFor } from './face';
+import { setPointer } from './gaze';
+import { fmtTime, greeting, nextEvent } from './format';
 import { LifeProvider, useMascotLife, useMusic } from './mascotLife';
 
 export interface ChatState {
@@ -51,6 +53,10 @@ export default function App() {
       api.on('focus:changed', (f?: FocusState) => { setFocus(f ?? undefined); if (!f) setHappyUntil(Date.now() + 6000); }),
       api.on('briefing', (b: Briefing) => setBriefing(b)),
       api.on('activity', (a: { idleSeconds: number }) => setIdleSeconds(a.idleSeconds)),
+      api.on('cursor', (c: { x: number; y: number }) => {
+        setPointer(c.x, c.y, performance.now());
+        setIdleSeconds(0); // the cursor only moves when someone is there, so she wakes up right away
+      }),
       api.on('agent:status', (status: AgentStatus) => setChat((c) => ({ ...c, status }))),
       api.on('agent:confirm', (confirm: ConfirmRequest) => {
         setChat((c) => ({ ...c, confirm }));
@@ -83,13 +89,12 @@ export default function App() {
   const minutesToNext = upcoming ? Math.round((+new Date(upcoming.start) - +now) / 60_000) : Infinity;
   const highEmails = data.emails.filter((e) => e.level === 'high');
 
-  const mood: Mood = useMemo(() => {
-    if (reminder) return 'alert';
-    if (chat.status.state !== 'idle' || focus) return 'thinking';
-    if (Date.now() < happyUntil) return 'happy';
-    if (isNight(now) && minutesToNext > 60) return 'sleepy';
-    return 'idle';
-  }, [reminder, chat.status.state, focus, happyUntil, now, minutesToNext]);
+  const mood: Mood = useMemo(
+    () => moodFor({ reminder: !!reminder, busy: chat.status.state !== 'idle' || !!focus, recentlyHappy: Date.now() < happyUntil }),
+    // `now` keeps "recently happy" fresh as time passes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [reminder, chat.status.state, focus, happyUntil, now],
+  );
 
   // ---- the star's life: music, sleep and spontaneous actions ----
   const reactToMusic = settings?.reactToMusic ?? false;
@@ -100,6 +105,8 @@ export default function App() {
     idleSeconds,
     music,
     reactToMusic,
+    followMouse: settings?.followMouse ?? true,
+    petReactions: settings?.petReactions ?? true,
     calm: !!reminder || chat.status.state !== 'idle' || !!focus,
   });
 
@@ -110,6 +117,7 @@ export default function App() {
     if (chat.status.state !== 'idle') return ['Thinking among the stars…'];
     if (briefing) return [briefing.title, ...briefing.lines.slice(0, 5).map((l) => l.replace(/^•\s*/, ''))];
     if (focus) return [`Focus time — ${Math.max(1, Math.ceil((focus.endsAt - Date.now()) / 60_000))} min left ✦`];
+    if (life.reactionLine) return [life.reactionLine];
     if (life.sleeping) return ['Zzz… 💤'];
     if (life.dancing) return [`♪ ${life.bpm} BPM — I love this one!`, 'Dance with me! ✦'];
     const actionLine = ACTION_LINES[life.action];
@@ -121,7 +129,7 @@ export default function App() {
     lines.push(`${greeting(now)}${first ? `, ${first}` : ''}!`);
     if (!upcoming) lines.push('Your sky is clear — no more events today 🌌');
     return lines;
-  }, [reminder, briefing, focus, life.sleeping, life.dancing, life.bpm, life.action, chat.status.state, upcoming, minutesToNext, highEmails.length, auth?.profile?.name, now]);
+  }, [reminder, briefing, focus, life.reactionLine, life.sleeping, life.dancing, life.bpm, life.action, chat.status.state, upcoming, minutesToNext, highEmails.length, auth?.profile?.name, now]);
 
   const poke = () => setHappyUntil(Date.now() + 2500);
 

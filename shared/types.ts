@@ -91,10 +91,16 @@ export interface Settings {
   accessories: Accessory[];
   /** The star does spontaneous things (smiles, hops, waves…) when idle. */
   mascotLife: boolean;
+  /** Her eyes follow the mouse cursor around the screen. */
+  followMouse: boolean;
+  /** She reacts when the mouse passes over her: laughs, blushes, purrs, tries to bite. */
+  petReactions: boolean;
   /** Minutes without keyboard/mouse use before the star falls asleep; 0 = never. */
   sleepAfterMinutes: number;
   /** Detect music playing on the computer and dance to its tempo. */
   reactToMusic: boolean;
+  /** Look for new versions in the background (every few hours). */
+  autoUpdate: boolean;
   /** Start `ollama serve` automatically when it is installed but not running. */
   autoStartOllama: boolean;
   morningBriefing: boolean;
@@ -164,6 +170,21 @@ export interface EmailDraft {
   inReplyTo?: string;
 }
 
+export type UpdateStatus = 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'none' | 'error' | 'unsupported';
+
+export interface UpdateState {
+  status: UpdateStatus;
+  /** The version of this installed app. */
+  currentVersion: string;
+  /** The newer version, once one is found. */
+  version?: string;
+  /** Download progress, 0-100. */
+  percent?: number;
+  message?: string;
+  /** True when Lumi can only point you to the download page (macOS, .deb) instead of updating itself. */
+  notifyOnly: boolean;
+}
+
 export interface ConfirmRequest {
   id: string;
   kind: 'create_event';
@@ -222,6 +243,15 @@ export interface LumiApi {
     start(minutes: number): Promise<FocusState>;
     stop(): Promise<void>;
   };
+  updates: {
+    getState(): Promise<UpdateState>;
+    /** Checks now. */
+    check(): Promise<UpdateState>;
+    /** Restarts into a downloaded update. */
+    install(): Promise<void>;
+    /** Opens the download page (for platforms that cannot update themselves). */
+    openDownload(): Promise<void>;
+  };
   music: {
     /** Asks the main process to start system-audio listening (it supplies the user gesture Chromium needs). */
     requestStart(): Promise<void>;
@@ -258,7 +288,7 @@ export interface LumiApi {
     openExternal(url: string): Promise<void>;
   };
   on(
-    channel: 'reminder' | 'data:updated' | 'agent:confirm' | 'agent:status' | 'auth:changed' | 'settings:changed' | 'focus:changed' | 'briefing' | 'activity',
+    channel: 'reminder' | 'data:updated' | 'agent:confirm' | 'agent:status' | 'auth:changed' | 'settings:changed' | 'focus:changed' | 'briefing' | 'activity' | 'update:state' | 'cursor',
     listener: (payload: any) => void,
   ): () => void;
 }

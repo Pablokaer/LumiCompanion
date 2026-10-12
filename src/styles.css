@@ -464,7 +464,7 @@ textarea:focus { border-color: var(--star); box-shadow: 0 0 0 3px rgba(92, 184, 
 .mascot { transition: --mascot-halo 0.4s ease; }
 .mascot svg { transition: filter 0.4s ease; }
 .mascot-halo, .mascot-sparkles { transition: opacity 0.5s ease; }
-.face-part { opacity: 0; transition: opacity 0.2s ease; }
+.face-part { opacity: 0; transition: opacity 0.3s ease-in-out; }
 .face-part.on { opacity: 1; }
 .cheek { transition: opacity 0.3s ease; }
 .pupil { transition: transform 0.3s ease; }
@@ -475,6 +475,32 @@ textarea:focus { border-color: var(--star); box-shadow: 0 0 0 3px rgba(92, 184, 
 .is-dancing .mascot-notes, .is-humming .mascot-notes, .is-sleeping .mascot-zzz { opacity: 1; }
 .note, .z { animation-play-state: paused; }
 .is-dancing .note, .is-humming .note, .is-sleeping .z { animation-play-state: running; }
+
+/* eyes are posed from JS (they follow the mouse, wander and blink), so their CSS animations step aside */
+.pupil { transform-box: fill-box; transform-origin: center; }
+.mascot.js-motion .pupil { transition: none; }
+.mascot.js-motion .mascot-eyes { animation: none; }
+
+/* reactions to being petted, teased or stared at */
+.cheek { transition: opacity 0.3s ease, transform 0.3s ease, fill 0.3s ease; transform-box: fill-box; transform-origin: center; }
+.is-shy .cheek { opacity: 1 !important; fill: #ff4d8a; transform: scale(1.4); }
+.mascot-hearts, .mascot-sweat { opacity: 0; transition: opacity 0.3s ease; }
+.is-purring .mascot-hearts, .is-shy .mascot-sweat { opacity: 1; }
+.heart { opacity: 0; animation: heart-float 1.8s ease-out infinite; animation-play-state: paused; }
+.heart.h2 { animation-delay: 0.6s; }
+.heart.h3 { animation-delay: 1.2s; }
+.is-purring .heart { animation-play-state: running; }
+@keyframes heart-float {
+  0% { opacity: 0; transform: translateY(10px) scale(0.6); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-36px) scale(1.15) rotate(10deg); }
+}
+.mascot-sweat { animation: sweat-drop 1.6s ease-in infinite; animation-play-state: paused; }
+.is-shy .mascot-sweat { animation-play-state: running; }
+@keyframes sweat-drop { 0% { transform: translateY(0); } 100% { transform: translateY(16px); } }
+.chomp-mouth { transform-origin: 100px 118px; }
+.is-biting .chomp-mouth { animation: chomp 0.55s cubic-bezier(0.4, 0, 0.2, 1) 3; }
+@keyframes chomp { 0%, 20% { transform: scaleY(1); } 32%, 42% { transform: scaleY(0.22); } 72%, 100% { transform: scaleY(1); } }
 
 /* spontaneous actions */
 .act-smile { animation: smile-pulse 2.2s ease-in-out; }
@@ -596,6 +622,11 @@ textarea:focus { border-color: var(--star); box-shadow: 0 0 0 3px rgba(92, 184, 
 .cp-swatch > button.on { border-color: #fff; box-shadow: 0 0 0 2px var(--star); }
 .cp-remove { position: absolute; top: -6px; right: -6px; width: 15px; height: 15px; padding: 0; border-radius: 50%; border: 0; background: var(--danger); color: #fff; font-size: 11px; line-height: 15px; display: none; }
 .cp-swatch:hover .cp-remove, .cp-swatch:focus-within .cp-remove { display: block; }
+
+/* update banner */
+.update-banner { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; padding: 9px 12px; border-radius: 14px; background: linear-gradient(90deg, rgba(92, 184, 255, 0.2), rgba(139, 92, 246, 0.16)); border: 1px solid rgba(92, 184, 255, 0.5); font-size: 13px; }
+.update-banner .update-text { flex: 1; }
+.update-banner .icon-btn { width: 26px; height: 26px; font-size: 14px; flex: none; }
 
 /* browser-preview gallery */
 .gallery { padding: 16px; height: 100vh; overflow: auto; background: #0b1233; user-select: text; }

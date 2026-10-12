@@ -1,4 +1,4 @@
-import { app, desktopCapturer, dialog, globalShortcut, ipcMain, Notification, powerMonitor, session, shell } from 'electron';
+import { app, desktopCapturer, dialog, globalShortcut, ipcMain, Notification, powerMonitor, screen, session, shell } from 'electron';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import type {
@@ -15,6 +15,7 @@ import { createDraft, getFullEmail, searchEmails } from './google/gmail';
 import { briefingDate, buildBriefing, shouldShowBriefing } from './services/briefing';
 import { FocusService, shouldHoldReminder } from './services/focus';
 import { SyncService } from './services/sync';
+import { RELEASES_PAGE, UpdateService } from './updater';
 import { LANGUAGE_NAMES, transcribe } from './voice/transcribe';
 import { getSettings, loadDotEnv, updateSettings } from './store';
 import { createTray, rebuildTrayMenu } from './tray';
@@ -37,6 +38,8 @@ const sync = new SyncService();
 const pendingConfirms = new Map<string, (approved: boolean) => void>();
 const pickedFiles = new Set<string>();
 const focus = new FocusService();
+const updates = new UpdateService();
+let notifiedUpdate = '';
 
 /** Starts Ollama when it is installed but stopped. Attempts are rate-limited so a broken install is not retried constantly. */
 let ollamaAttempt: { at: number; promise: Promise<unknown> } | undefined;
@@ -118,6 +121,33 @@ async function bootstrap() {
     }
   });
   setInterval(checkBriefing, 60_000);
+  updates.on('state', (s) => {
+    send('update:state', s);
+    const worthTellingAbout = s.status === 'ready' || (s.status === 'available' && s.notifyOnly);
+    if (worthTellingAbout && s.version && notifiedUpdate !== s.version && getSettings().systemNotifications && Notification.isSupported()) {
+      notifiedUpdate = s.version;
+      new Notification({
+        title: `${getSettings().mascotName} ✦ Lumi ${s.version} is available`,
+        body: s.notifyOnly ? 'Open Lumi to download the new version.' : 'Restart Lumi to finish updating.',
+      }).show();
+    }
+  });
+  updates.start(() => getSettings().autoUpdate);
+
+  // The star's eyes follow the cursor anywhere on screen, but a web page only sees the mouse inside its
+  // own window, so the cursor position (relative to the window) is sent from here, only when it moves.
+  let lastCursor = '';
+  setInterval(() => {
+    const win = getWindow();
+    if (!win || !win.isVisible() || !getSettings().followMouse) return;
+    const p = screen.getCursorScreenPoint();
+    const b = win.getBounds();
+    const x = p.x - b.x, y = p.y - b.y;
+    const key = `${x},${y}`;
+    if (key === lastCursor) return;
+    lastCursor = key;
+    send('cursor', { x, y });
+  }, 33);
   // Tell the star how long the computer has been idle so she can fall asleep (and wake up).
   setInterval(() => send('activity', { idleSeconds: powerMonitor.getSystemIdleTime() }), 5_000);
   void tryStartOllama();
@@ -184,6 +214,12 @@ function registerIpc() {
         }),
     });
   });
+
+  // --- Updates ---
+  ipcMain.handle('update:getState', () => updates.current);
+  ipcMain.handle('update:check', () => updates.check(true));
+  ipcMain.handle('update:install', () => updates.install());
+  ipcMain.handle('update:openDownload', () => shell.openExternal(RELEASES_PAGE));
 
   // --- Music detection ---
   ipcMain.handle('music:requestStart', () => {

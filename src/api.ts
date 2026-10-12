@@ -1,5 +1,5 @@
 import type {
-  AuthState, CalendarEvent, ChatMessage, DataSnapshot, FocusState, LumiApi, NewEventInput, ScoredEmail, Settings,
+  AuthState, CalendarEvent, ChatMessage, DataSnapshot, FocusState, LumiApi, NewEventInput, ScoredEmail, Settings, UpdateState,
 } from '../shared/types';
 
 declare global {
@@ -25,7 +25,7 @@ function createMockApi(): LumiApi {
   const params = new URLSearchParams(location.search);
   let auth: AuthState = { configured: true, signedIn: params.get('signedIn') !== '0', profile: { name: 'Pablo', email: 'pablo@example.com' } };
   let settings: Settings = {
-    mascotName: 'Lumi', widgetMode: 'desktop', widgetView: (params.get('view') as Settings['widgetView']) ?? 'mascot', skin: ((params.get('skin') as Settings['skin']) ?? 'classic'), customColor: '#' + (params.get('color') ?? 'ff6fae'), colorSwatches: ['#ff6fae', '#34d399', '#f59e0b'], shape: (params.get('shape') as Settings['shape']) ?? 'star', accessories: (params.get('acc')?.split(',').filter(Boolean) ?? []) as Settings['accessories'], mascotLife: true, sleepAfterMinutes: 3, reactToMusic: true, autoStartOllama: true, morningBriefing: true, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', modelChat: '', modelTriage: '', modelWriting: '', launchAtLogin: true, reminderLeadMinutes: [15, 5], systemNotifications: true,
+    mascotName: 'Lumi', widgetMode: 'desktop', widgetView: (params.get('view') as Settings['widgetView']) ?? 'mascot', skin: ((params.get('skin') as Settings['skin']) ?? 'classic'), customColor: '#' + (params.get('color') ?? 'ff6fae'), colorSwatches: ['#ff6fae', '#34d399', '#f59e0b'], shape: (params.get('shape') as Settings['shape']) ?? 'star', accessories: (params.get('acc')?.split(',').filter(Boolean) ?? []) as Settings['accessories'], mascotLife: true, followMouse: true, petReactions: true, sleepAfterMinutes: 3, reactToMusic: true, autoUpdate: true, autoStartOllama: true, morningBriefing: true, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', modelChat: '', modelTriage: '', modelWriting: '', launchAtLogin: true, reminderLeadMinutes: [15, 5], systemNotifications: true,
     ollamaUrl: 'http://127.0.0.1:11434', ollamaModel: 'llama3.1:8b', aiEmailTriage: true, emailLookbackDays: 2,
   };
   const events: CalendarEvent[] = [
@@ -97,6 +97,20 @@ function createMockApi(): LumiApi {
       respondConfirm: async () => undefined,
       ollamaStatus: async () => ({ running: true, models: ['llama3.1:8b', 'qwen2.5:7b'] }),
     },
+    updates: (() => {
+      const forced = params.get('update');
+      let state: UpdateState = { status: 'idle', currentVersion: '0.1.5', notifyOnly: params.get('notify') === '1' };
+      if (forced === 'ready') state = { ...state, status: 'ready', version: '0.1.9', percent: 100 };
+      if (forced === 'available') state = { ...state, status: 'available', version: '0.1.9', notifyOnly: true };
+      if (forced === 'downloading') state = { ...state, status: 'downloading', version: '0.1.9', percent: 42 };
+      if (forced === 'error') state = { ...state, status: 'error', message: 'Could not reach the update server. Check your internet connection.' };
+      return {
+        getState: async () => state,
+        check: async () => { state = { ...state, status: 'checking' }; emit('update:state', state); await wait(900); state = { ...state, status: 'none' }; emit('update:state', state); return state; },
+        install: async () => undefined,
+        openDownload: async () => { window.open('https://github.com/Pablokaer/LumiCompanion/releases/latest', '_blank'); },
+      };
+    })(),
     music: {
       requestStart: async () => undefined,
     },
@@ -154,6 +168,13 @@ function createMockApi(): LumiApi {
     on(channel, listener) {
       if (!listeners.has(channel)) listeners.set(channel, new Set());
       listeners.get(channel)!.add(listener);
+      if (channel === 'cursor') {
+        const move = (e: PointerEvent) => listener({ x: e.clientX, y: e.clientY });
+        window.addEventListener('pointermove', move);
+        const pinned = params.get('mouse')?.split(',').map(Number);
+        if (pinned && pinned.length === 2) window.setTimeout(() => listener({ x: pinned[0], y: pinned[1] }), 300);
+        return () => { window.removeEventListener('pointermove', move); listeners.get(channel)!.delete(listener); };
+      }
       if (channel === 'activity') {
         // Browser preview: idle time = time since the last key or mouse movement (?sleep=1 starts asleep).
         let lastInput = params.get('sleep') === '1' ? Date.now() - 3_600_000 : Date.now();

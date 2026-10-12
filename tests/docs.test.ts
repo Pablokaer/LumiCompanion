@@ -7,7 +7,7 @@ import { abstractFromIndex, formatReference, inTextCitation, toSource, type Sour
 vi.mock('electron', () => ({ app: {}, safeStorage: {}, shell: {} }));
 
 const settings: Settings = {
-  mascotName: 'Lumi', widgetMode: 'desktop', widgetView: 'mascot', skin: 'classic', customColor: '#ff6fae', colorSwatches: [], shape: 'star', accessories: [], mascotLife: true, sleepAfterMinutes: 3, reactToMusic: true, autoStartOllama: false, morningBriefing: false, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', modelChat: '', modelTriage: '', modelWriting: '', launchAtLogin: false, reminderLeadMinutes: [15, 5], systemNotifications: true,
+  mascotName: 'Lumi', widgetMode: 'desktop', widgetView: 'mascot', skin: 'classic', customColor: '#ff6fae', colorSwatches: [], shape: 'star', accessories: [], mascotLife: true, followMouse: true, petReactions: true, sleepAfterMinutes: 3, reactToMusic: true, autoUpdate: true, autoStartOllama: false, morningBriefing: false, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', modelChat: '', modelTriage: '', modelWriting: '', launchAtLogin: false, reminderLeadMinutes: [15, 5], systemNotifications: true,
   ollamaUrl: 'http://x', ollamaModel: 'm', aiEmailTriage: true, emailLookbackDays: 2,
 };
 

@@ -7,7 +7,7 @@ Lumi is a little blue star that lives on your Windows or Mac desktop. It watches
 ![Lumi panels](docs/screens.png)
 
 - **Desktop widget:** a frameless, transparent window that sits on the desktop (or always on top), lives in the tray/menu bar and starts with your computer.
-- **Mascot:** Lumi has moods. Idle, happy, *alert* (shakes and glows orange before a meeting), thinking (while the agent works) and sleepy (late at night).
+- **Mascot:** Lumi has moods. Idle, happy, *alert* (shakes and glows orange before a meeting), thinking (while the agent works) and asleep (only when the computer is idle). Her eyes are open by default, day or night; the closed "^ ^" eyes appear only for a moment of delight or a yawn.
 - **A star that feels alive:** she is never still. She smiles, hops, waves, spins, hums, stretches and looks around on her own; falls asleep (closed eyes, floating "Zzz") when you stop using the computer and stretches when you come back; and **dances to the beat** when music is playing on the computer (see below).
 - **Sign in with Google:** one login gives access to Calendar and Gmail. It uses OAuth with PKCE and a loopback redirect, and tokens are encrypted with the OS keychain (`safeStorage`).
 - **Reminders:** configurable lead times (default 15 and 5 min). Lumi peeks out in front of your windows and shows a system notification.
@@ -68,11 +68,22 @@ If Ollama is off, Calendar, Gmail, reminders and the heuristic email ranking sti
 
 ## A star that feels alive
 
+**Lively eyes.** Her pupils follow your mouse cursor **anywhere on the screen** (the main process reports the cursor position, since a window only sees the mouse inside itself), widen a little when the cursor comes close, and stare straight ahead during a reminder. When the mouse rests for a few seconds her eyes wander on their own: quick glances left and right, up and down, now and then back toward the cursor, plus tiny involuntary movements. She blinks at random moments, sometimes twice in a row. Turn the cursor tracking off in Settings → Life → "Eyes follow the mouse" (she still wanders and blinks).
+
+**Reactions to the mouse.** Pass the mouse over her and she answers, and the more you do it the more she reacts:
+
+- the first pass always makes her **giggle** (laughing eyes and mouth, a little shaking). Being **embarrassed** (red cheeks, a sweat drop, looking away and shrinking back) only comes later, once she has already reacted to you;
+- several quick passes in a row (within about 14 seconds) escalate: she narrows her eyes with fierce eyebrows, fixes her gaze on the cursor and **tries to bite it**, lunging at it with her mouth open three times, and is sometimes embarrassed about it afterwards;
+- moving the mouse **slowly** over her counts as petting: she leans into the cursor, closes her eyes happily, purrs and little hearts float up, for as long as you keep going (she may blush if it goes on very long);
+- resting the mouse on her without moving makes her shy (or, if she has not reacted to you yet, giggle);
+- the movement is deliberately smooth: the direction she leans fades out as the mouse crosses her centre (so she never twitches), reactions build up from rest on a spring instead of starting with a jolt, and the jaw snaps and the giggle follow eased curves with no sharp corners;
+- she never repeats the same reaction twice in a row, forgets after a while, and says something fitting in her speech bubble. Turn it off in Settings → Life → "React when I pet her".
+
 **Spontaneous actions.** Every few seconds Lumi picks something to do: smile, hop, look left and right, wave, wiggle, twinkle, hum (with music notes), stretch, peek, spin or cheer. She never repeats the same action twice in a row and stays calm (no random actions) while a reminder, the chat agent or a focus session is active. Small avatars (the chat) stay still.
 
 **Smooth transitions.** Nothing snaps. The body movement (floating, breathing, bouncing, shaking, dancing) comes from one motion engine that blends poses with weights gliding toward the current state, so falling asleep, waking up and starting or stopping a dance are crossfades. Facial expressions are all drawn at once and faded in and out, the halo colour and glow ease between moods, and music notes and "Zzz" fade in and out. A spontaneous action is never cut short: if something important happens mid-action she finishes it (every action starts and ends at rest) and only the next one is held back.
 
-**Sleeping.** After the keyboard and mouse have been idle for a few minutes (default 3) she falls asleep, and wakes with a yawn and a stretch when you are back. Idle time comes from the operating system. Playing music wakes her up to dance.
+**Sleeping.** After the keyboard and mouse have been idle for a few minutes (default 3) she falls asleep, and wakes with a yawn and a stretch when you are back. Idle time comes from the operating system. Playing music wakes her up to dance, and moving the mouse wakes her up immediately.
 
 **Dancing to music.** Lumi listens to what the computer is playing (the system's audio output, "loopback" capture) and works out whether it is music and at what tempo:
 
@@ -84,7 +95,7 @@ If Ollama is off, Calendar, Gmail, reminders and the heuristic email ranking sti
 - **Platform notes:** works on Windows out of the box. macOS 13+ may ask for Screen Recording permission (Electron's system-audio capture requires it) and Linux needs PulseAudio/PipeWire. If capture is not possible the status in Settings says so and everything else keeps working.
 - With "reduce motion" enabled in the OS, the spontaneous actions and dance are skipped.
 
-Browser preview (`npm run preview:ui`) extras: `?gallery=1` shows every shape and accessory (add `&skin=sunset` or `&mood=happy`), `?shape=planet&acc=wizard,sunglasses` previews a look, `?skin=custom&color=22c55e` a custom colour, and for inspecting the animations: `?sleep=1` (start asleep), `?music=1` (fake 120 BPM music) and `?action=wave` (pin one action: `smile`, `hop`, `look`, `wave`, `spin`, `wiggle`, `stretch`, `twinkle`, `hum`, `peek`, `cheer`, `wake`).
+Browser preview (`npm run preview:ui`) extras: `?gallery=1` shows every shape and accessory (add `&skin=sunset` or `&mood=happy`), `?shape=planet&acc=wizard,sunglasses` previews a look, `?skin=custom&color=22c55e` a custom colour, `?update=ready|available|downloading|error` the update banner and card, and for inspecting the animations: `?sleep=1` (start asleep), `?mouse=200,60` (pin the cursor position the eyes look at), `?reaction=giggle|shy|purr|bite` (pin a mouse reaction), `?music=1` (fake 120 BPM music) and `?action=wave` (pin one action: `smile`, `hop`, `look`, `wave`, `spin`, `wiggle`, `stretch`, `twinkle`, `hum`, `peek`, `cheer`, `wake`).
 
 ## Custom colour
 
@@ -168,7 +179,7 @@ You normally do not need to run these by hand: pushing to `main` builds all plat
 | Workflow | When | What it does |
 |---|---|---|
 | `.github/workflows/ci.yml` | Pull requests and pushes to any branch except `main` | Type-check, unit tests and a production build on Ubuntu |
-| `.github/workflows/release.yml` | Every push to `main`, or manually (Actions → Release → Run workflow) | Runs the checks, builds installers on Windows, macOS and Linux runners, and publishes them as a GitHub Release |
+| `.github/workflows/release.yml` | Every push to `main`, or manually (Actions → Release → Run workflow) | Runs the checks, builds installers on Windows, macOS and Linux runners, and publishes them as a new GitHub Release |
 
 **One-time setup:** the installers need your Google OAuth client, so add two repository secrets under *Settings → Secrets and variables → Actions*: `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (the same values as in your `.env`). The build fails early with a clear message if they are missing.
 
@@ -177,14 +188,31 @@ Release assets (named `Lumi-<version>-<os>-<arch>.<ext>`):
 - **Windows:** NSIS installer (`.exe`, x64)
 - **macOS:** `.dmg` for Intel (x64) and Apple Silicon (arm64)
 - **Linux:** `.AppImage` and `.deb` (x64)
+- **Update feed:** `latest.yml`, `latest-mac.yml`, `latest-linux.yml` and `.blockmap` files, which installed apps read to update themselves (see below)
 
-The release is tagged `v<version>` using the version in `package.json`. Pushing to `main` again with the same version replaces that release; bump `version` in `package.json` to publish a new one. Build artifacts are also kept for 30 days on the workflow run.
+**Version numbers are automatic.** Each release is `<major>.<minor>.<run number>`, for example `0.1.57`: the major and minor come from `version` in `package.json` and the patch is the workflow run number, so every release is newer than the one before. Change `major.minor` in `package.json` for bigger releases. The version is stamped into the build and nothing is committed back. The release is tagged `v<version>`, marked as the latest, and only the newest 5 releases are kept (installers are large).
 
 Notes:
 
 - Builds are **unsigned**. Windows shows a SmartScreen warning (More info → Run anyway) and macOS needs right-click → Open (or `xattr -cr /Applications/Lumi.app`). Add signing certificates to the workflow secrets to remove this.
 - The installers bundle your OAuth client secret. Google treats the secret of a desktop app as non-confidential, but if the repository is public, anyone can read it from the release files. Prefer a private repository, or use a separate OAuth client for public builds.
 - **Android is not supported.** Lumi is an Electron app, which only runs on desktop operating systems. An Android version would be a separate project (for example React Native or Capacitor) and could not run the local Ollama and Whisper features in the same way.
+
+## Updates
+
+Installed copies of Lumi look for new versions on their own: shortly after starting and then every few hours (Settings → Updates lets you switch this off or check right now).
+
+| Install | What happens |
+|---|---|
+| **Windows** | The new installer downloads in the background, its SHA-512 is checked against `latest.yml`, and it installs when you click "Restart to update" (or the next time you quit Lumi). |
+| **Linux AppImage** | Same as Windows. |
+| **macOS** and **Linux .deb** | Lumi tells you a newer version exists and opens the download page. Self-updating on macOS needs an app signed with an Apple Developer ID, and the .deb format does not support it. |
+
+A banner and a notification appear when an update is ready. A download whose checksum does not match is discarded. Updates are fetched over HTTPS from this repository's GitHub releases, so without code signing you are trusting that repository.
+
+Only versions installed **from a release that already includes the updater** can update themselves. Anyone running the very first release (0.1.0) has to download the new installer once by hand.
+
+For development, the feed can be pointed at a local server with the `LUMI_UPDATE_FEED=http://127.0.0.1:<port>` environment variable (only local addresses are accepted).
 
 ## Project structure
 
@@ -199,6 +227,7 @@ electron/              Main process (Node)
   docs/                assignment.ts (answer pipeline), extract.ts (docx/pdf/txt), sources.ts (OpenAlex + citations), googleDocs.ts
   agent/               ollama.ts (HTTP client, auto-start, per-task models), agent.ts (tool-calling loop + email triage), mailTools.ts (draft replies, email → event)
   voice/               transcribe.ts (local Whisper speech-to-text)
+  updater.ts           Update service: electron-updater for Windows/AppImage, release-page check elsewhere
   services/            sync.ts (polling), reminders.ts, emailScoring.ts, time.ts, briefing.ts, focus.ts
 shared/types.ts        Types shared by main + renderer
 shared/appearance.ts   Shape and accessory tables, slot rules and settings migration
@@ -210,13 +239,16 @@ src/                   React renderer (space UI)
   appearance.tsx       Skins (presets and custom), shape and accessory catalogue, and the theme context
   Gallery.tsx          Browser-preview gallery of every shape and accessory (`?gallery=1`)
   behavior.ts          Pure logic for the star's spontaneous actions
+  face.ts              Pure logic for her expression (eyes and mouth) and overall mood
+  interaction.ts       Pure state machine for her reactions to the mouse (giggle, blush, purr, bite)
+  gaze.ts              Pure controllers for where her eyes look (cursor following, wandering) and when she blinks
   dance.ts             Pure choreography: pose for a position in the beat
   motion.ts            Motion engine: blends float/breathe/bounce/shake/dance poses with smoothly changing weights
   mascotLife.tsx       Hooks that decide what the star is doing (sleep, dance, actions) and start music listening
   music/               beat.ts (tempo + beat detection), listener.ts (system-audio capture and analysis)
   voice.ts             Microphone recording (16 kHz mono) for voice input
   api.ts               window.lumi + a mock for browser preview
-tests/                 Unit tests (core, docs, calendar, features, music, life, motion, appearance, color)
+tests/                 Unit tests (core, docs, calendar, features, music, life, motion, appearance, color, updater, face, gaze, interaction)
 scripts/oauth-json.mjs Builds google-oauth.json from .env or environment variables for installers
 .github/workflows/     CI (ci.yml) and release builds (release.yml)
 ```
@@ -234,6 +266,7 @@ scripts/oauth-json.mjs Builds google-oauth.json from .env or environment variabl
 - The Docs permission (`documents`) is used only to create the documents you ask for. Only files you pick in the file dialog are read.
 - The Gmail compose permission (`gmail.compose`) is used only to save drafts you ask for. Lumi never sends email.
 - The assignment feature sends short search queries (not your files) to OpenAlex.
+- Update checks contact GitHub (the repository's releases) and send nothing about you beyond what any web request reveals.
 - Music detection only runs while "Dance to music" is on. It analyses the system audio output in memory; audio is never stored or sent, and the grant is limited to audio of Lumi's own window.
 - Voice is transcribed locally. The only network access is the one-time download of the speech model from Hugging Face. The microphone permission is granted only to Lumi's own window.
 

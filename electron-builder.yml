@@ -2,6 +2,12 @@ appId: com.finperiti.lumi
 productName: Lumi
 # e.g. Lumi-0.1.0-win-x64.exe, Lumi-0.1.0-mac-arm64.dmg, Lumi-0.1.0-linux-x86_64.AppImage
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+# Where installed apps look for updates, and what the latest*.yml files point to.
+publish:
+  provider: github
+  owner: Pablokaer
+  repo: LumiCompanion
+  releaseType: release
 directories:
   output: release
   buildResources: build
@@ -11,6 +17,7 @@ files:
   - assets/**
   - package.json
   - "!**/*.map"
+  - "!release/**"
   # Speech-to-text is transformers.js + onnxruntime-node (Node build); the browser runtime and other CPUs are not needed.
   - "!node_modules/onnxruntime-web/**"
   - "!node_modules/@img/sharp-wasm32/**"

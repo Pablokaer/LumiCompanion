@@ -1,8 +1,12 @@
 name: Release
 
-# Every push to main: check the code, build installers for Windows, macOS and Linux,
-# and publish them as a GitHub Release named after the version in package.json (e.g. v0.1.0).
-# Pushing to main again with the same version replaces that release; bump the version for a new one.
+# Every push to main: check the code, build installers for Windows, macOS and Linux, and publish them
+# as a new GitHub Release. Installed apps look at the latest release to update themselves.
+#
+# Versions are numbered automatically: the major.minor from package.json plus the workflow run number
+# (e.g. 0.1.57), so every release is newer than the one before. Change major.minor in package.json
+# for bigger releases. The version is stamped into the build; nothing is committed back.
+#
 # Run it by hand from the Actions tab with "Run workflow".
 on:
   push:
@@ -16,16 +20,26 @@ concurrency:
   group: release
   cancel-in-progress: false
 
+env:
+  # How many releases to keep (older ones are deleted after publishing, installers are large).
+  KEEP_RELEASES: 5
+
 jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+      - id: version
+        run: |
+          BASE=$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')")
+          echo "version=$BASE.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
@@ -58,6 +72,10 @@ jobs:
           cache: npm
       - run: npm ci
 
+      - name: Stamp the version
+        shell: bash
+        run: npm pkg set version="${{ needs.check.outputs.version }}"
+
       - name: Require the Google OAuth secrets
         shell: bash
         run: |
@@ -86,14 +104,17 @@ jobs:
           name: lumi-${{ matrix.name }}
           if-no-files-found: error
           retention-days: 30
+          # The installers, plus the files installed apps read to update themselves (latest*.yml and block maps).
           path: |
             release/*.exe
             release/*.dmg
             release/*.AppImage
             release/*.deb
+            release/*.blockmap
+            release/latest*.yml
 
   release:
-    needs: build
+    needs: [check, build]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -108,14 +129,23 @@ jobs:
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.check.outputs.version }}
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          TAG="v$VERSION"
           ls -la dist-release
-          # Replace the release for this version (and its tag) so it points at this commit.
-          gh release delete "$TAG" --cleanup-tag --yes || true
-          gh release create "$TAG" dist-release/* \
+          # The update feed must be there, or installed apps would never see this release.
+          test -f dist-release/latest.yml || { echo "::error::latest.yml (Windows update feed) is missing"; exit 1; }
+          gh release create "v$VERSION" dist-release/* \
             --target "$GITHUB_SHA" \
             --title "Lumi $VERSION" \
+            --latest \
             --generate-notes \
-            --notes "Unsigned builds: Windows shows a SmartScreen warning (More info > Run anyway) and macOS needs right-click > Open. Lumi also needs Ollama installed locally."
+            --notes "Installed copies of Lumi update themselves (Windows and Linux AppImage); on macOS and the .deb, Lumi tells you a new version is out. Builds are unsigned: Windows shows a SmartScreen warning (More info > Run anyway) and macOS needs right-click > Open. Lumi also needs Ollama installed locally."
+
+      - name: Delete old releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release list --limit 100 --json tagName --jq ".[${KEEP_RELEASES}:][].tagName" | while read -r tag; do
+            echo "Deleting old release $tag"
+            gh release delete "$tag" --cleanup-tag --yes
+          done

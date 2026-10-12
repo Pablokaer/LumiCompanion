@@ -7,6 +7,7 @@ import { ACCESSORY_LABEL, SHAPE_INFO, SKINS, SLOT_LABEL, type PresetSkin } from 
 import { ColorPicker } from '../components/ColorPicker';
 import { Mascot } from '../components/Mascot';
 import { useLife } from '../mascotLife';
+import { describeUpdate, useUpdateState } from '../updates';
 
 const LEAD_OPTIONS = [60, 30, 15, 10, 5, 1];
 
@@ -27,6 +28,7 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
 }) {
   const [ollama, setOllama] = useState<OllamaStatus>();
   const life = useLife();
+  const update_ = useUpdateState();
   const [ollamaUrl, setOllamaUrl] = useState(settings.ollamaUrl);
   const [mascotName, setMascotName] = useState(settings.mascotName);
 
@@ -128,6 +130,8 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
       <section className="card">
         <h3>Life</h3>
         <Toggle label="Lively star" hint="She smiles, hops, waves, hums and looks around on her own." checked={settings.mascotLife} onChange={(v) => update({ mascotLife: v })} />
+        <Toggle label="React when I pet her" hint="Pass the mouse over her: she laughs, blushes, purrs, or tries to bite it." checked={settings.petReactions} onChange={(v) => update({ petReactions: v })} />
+        <Toggle label="Eyes follow the mouse" hint="Her eyes track your cursor around the screen, and wander and blink on their own when it rests." checked={settings.followMouse} onChange={(v) => update({ followMouse: v })} />
         <Toggle label="Sleep when I am away" hint="Zzz… when the keyboard and mouse have been idle." checked={settings.sleepAfterMinutes > 0} onChange={(v) => update({ sleepAfterMinutes: v ? 3 : 0 })} />
         {settings.sleepAfterMinutes > 0 && (
           <label className="field">
@@ -225,6 +229,23 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
             {[1, 2, 3, 7, 14].map((d) => <option key={d} value={d}>{d} day{d > 1 ? 's' : ''}</option>)}
           </select>
         </label>
+      </section>
+
+      <section className="card">
+        <h3>Updates</h3>
+        <p className="hint">{update_ ? `Lumi ${update_.currentVersion}` : '…'}</p>
+        <Toggle label="Check for updates automatically" hint="Looks for a new version when Lumi starts and every few hours." checked={settings.autoUpdate} onChange={(v) => update({ autoUpdate: v })} />
+        {update_ && describeUpdate(update_) && <p className={`hint${update_.status === 'error' ? ' warn' : ''}`}>{describeUpdate(update_)}</p>}
+        {update_?.status === 'downloading' && <div className="focus-bar" role="progressbar" aria-valuenow={update_.percent ?? 0} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${update_.percent ?? 0}%` }} /></div>}
+        <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
+          {update_?.status === 'ready' ? (
+            <button className="primary-btn" onClick={() => void api.updates.install()}>Restart to update</button>
+          ) : update_?.status === 'available' && update_.notifyOnly ? (
+            <button className="primary-btn" onClick={() => void api.updates.openDownload()}>Download {update_.version}</button>
+          ) : (
+            <button className="pill-btn ghost small" disabled={!update_ || update_.status === 'checking' || update_.status === 'downloading' || update_.status === 'unsupported'} onClick={() => void api.updates.check()}>Check now</button>
+          )}
+        </div>
       </section>
 
       <section className="card account">

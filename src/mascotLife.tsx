@@ -1,6 +1,7 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { api, isMock } from './api';
 import { nextDelayMs, pickAction, sleepThresholdSeconds, WAKE_MS, type MascotAction } from './behavior';
+import { InteractionController, type Reaction } from './interaction';
 import { beatClock, MusicListener, type MusicSnapshot } from './music/listener';
 
 declare global {
@@ -13,12 +14,25 @@ export interface LifeState {
   actionKey: number;
   sleeping: boolean;
   dancing: boolean;
+  /** Eyes follow the mouse cursor. */
+  followMouse: boolean;
+  /** How she is reacting to the mouse passing over her (laugh, blush, purr, bite). */
+  reaction: Reaction;
+  reactionKey: number;
+  reactionLine: string;
+  /** Pointer events from her body, which drive the reactions. */
+  interact: { enter(): void; leave(): void; move(x: number, y: number): void };
   bpm: number;
   musicStatus: MusicSnapshot['status'];
   musicError?: string;
 }
 
-export const IDLE_LIFE: LifeState = { action: 'none', actionKey: 0, sleeping: false, dancing: false, bpm: 0, musicStatus: 'off' };
+const NO_INTERACTION = { enter() {}, leave() {}, move() {} };
+
+export const IDLE_LIFE: LifeState = {
+  action: 'none', actionKey: 0, sleeping: false, dancing: false, followMouse: true, reaction: 'none', reactionKey: 0, reactionLine: '',
+  interact: NO_INTERACTION, bpm: 0, musicStatus: 'off',
+};
 
 const LifeContext = createContext<LifeState>(IDLE_LIFE);
 export const LifeProvider = LifeContext.Provider;
@@ -66,12 +80,14 @@ interface LifeInput {
   idleSeconds: number;
   music: MusicSnapshot;
   reactToMusic: boolean;
+  followMouse: boolean;
+  petReactions: boolean;
   /** Something important is going on (reminder, chat, focus): stay calm. */
   calm: boolean;
 }
 
 /** Decides what the star is doing: dancing, sleeping, waking up, or a random little action. */
-export function useMascotLife({ lively, sleepAfterMinutes, idleSeconds, music, reactToMusic, calm }: LifeInput): LifeState {
+export function useMascotLife({ lively, sleepAfterMinutes, idleSeconds, music, reactToMusic, followMouse, petReactions, calm }: LifeInput): LifeState {
   const reduced = useMemo(prefersReducedMotion, []);
   const dancing = reactToMusic && music.playing;
   const sleeping = !dancing && idleSeconds >= sleepThresholdSeconds(sleepAfterMinutes);
@@ -115,6 +131,28 @@ export function useMascotLife({ lively, sleepAfterMinutes, idleSeconds, music, r
     return () => { alive = false; window.clearTimeout(timer); };
   }, []);
 
+  // Reactions to the mouse passing over her. The controller is plain logic; this wires it to React.
+  const controller = useRef<InteractionController>(null as unknown as InteractionController);
+  if (!controller.current) controller.current = new InteractionController();
+  const ctl = controller.current;
+  const [reactionState, setReactionState] = useState({ reaction: 'none' as Reaction, key: 0, line: '' });
+  const sync = useCallback(() => setReactionState({ reaction: ctl.reaction, key: ctl.key, line: ctl.line }), [ctl]);
+  // Browser preview only: ?reaction=bite pins a reaction (and then the mouse no longer triggers real ones).
+  const forcedReaction = isMock ? (new URLSearchParams(location.search).get('reaction') as Reaction | null) : null;
+  const reactable = lively && petReactions && !sleeping && !forcedReaction;
+  const reactableRef = useRef(reactable);
+  reactableRef.current = reactable;
+  const interact = useMemo(() => ({
+    enter: () => { if (reactableRef.current && ctl.enter(performance.now())) sync(); },
+    leave: () => { ctl.leave(performance.now()); },
+    move: (x: number, y: number) => { if (reactableRef.current && ctl.move(performance.now(), x, y)) sync(); },
+  }), [ctl, sync]);
+  useEffect(() => {
+    const timer = window.setInterval(() => { if (ctl.tick(performance.now())) sync(); }, 100);
+    return () => window.clearInterval(timer);
+  }, [ctl, sync]);
+  useEffect(() => { if (!reactable && ctl.reset()) sync(); }, [reactable, ctl, sync]);
+
   // Browser preview only: ?action=wave pins an action so each animation can be inspected.
   const forced = isMock ? (new URLSearchParams(location.search).get('action') as MascotAction | null) : null;
 
@@ -123,6 +161,11 @@ export function useMascotLife({ lively, sleepAfterMinutes, idleSeconds, music, r
     actionKey,
     sleeping,
     dancing,
+    followMouse,
+    reaction: forcedReaction ?? reactionState.reaction,
+    reactionKey: reactionState.key,
+    reactionLine: forcedReaction ? `(${forcedReaction})` : reactionState.line,
+    interact,
     bpm: music.bpm,
     musicStatus: music.status,
     musicError: music.error,

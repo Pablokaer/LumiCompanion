@@ -8,6 +8,7 @@ import { SettingsTab } from '../tabs/SettingsTab';
 import { CalendarTab } from '../tabs/CalendarTab';
 import { TodayTab } from '../tabs/TodayTab';
 import { BriefingCard } from './BriefingCard';
+import { UpdateBanner } from './UpdateBanner';
 import { formatClock, useRemaining } from './FocusCard';
 import { CalendarIcon, ChatIcon, CloseIcon, GearIcon, MailIcon, MinimizeIcon, OrbitIcon, RefreshIcon } from './Icons';
 import { Mascot, type Mood } from './Mascot';
@@ -82,6 +83,7 @@ export function Panel(p: Props) {
       )}
 
       <main className="panel-body">
+        <UpdateBanner />
         {p.briefing && <BriefingCard briefing={p.briefing} onDismiss={p.onDismissBriefing} />}
         {p.tab === 'today' && <TodayTab events={p.data.events} now={p.now} name={p.auth.profile?.name} focus={p.focus} focusMinutes={p.settings.focusMinutes} />}
         {p.tab === 'calendar' && <CalendarTab data={p.data} now={p.now} />}
