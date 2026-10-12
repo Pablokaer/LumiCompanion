@@ -63,6 +63,9 @@ export interface ScoredEmail extends EmailSummary {
 
 export type WidgetMode = 'desktop' | 'onTop';
 
+export type Skin = 'classic' | 'nebula' | 'sunset' | 'mint' | 'mono';
+export type Accessory = 'none' | 'hat' | 'glasses' | 'crown' | 'bow';
+
 /** What the shrunken widget shows: the mascot, a month calendar or a day agenda. */
 export type WidgetView = 'mascot' | 'month' | 'day';
 
@@ -70,12 +73,29 @@ export interface Settings {
   mascotName: string;
   widgetMode: WidgetMode;
   widgetView: WidgetView;
+  skin: Skin;
+  accessory: Accessory;
+  /** Start `ollama serve` automatically when it is installed but not running. */
+  autoStartOllama: boolean;
+  morningBriefing: boolean;
+  /** Local "HH:mm" after which the morning briefing is shown once per day. */
+  briefingTime: string;
+  /** Local "YYYY-MM-DD" of the last briefing shown. */
+  lastBriefingDate?: string;
+  /** Default focus-session length in minutes. */
+  focusMinutes: number;
+  /** Language spoken to the microphone; 'system' follows the OS language. */
+  voiceLanguage: 'system' | 'pt' | 'en' | 'es';
   launchAtLogin: boolean;
   /** Minutes before an event at which to remind, e.g. [15, 5]. */
   reminderLeadMinutes: number[];
   systemNotifications: boolean;
   ollamaUrl: string;
   ollamaModel: string;
+  /** Per-task model overrides; empty means "use ollamaModel". */
+  modelChat: string;
+  modelTriage: string;
+  modelWriting: string;
   aiEmailTriage: boolean;
   emailLookbackDays: number;
 }
@@ -104,6 +124,26 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface FocusState {
+  /** Epoch ms when the session ends. */
+  endsAt: number;
+  minutes: number;
+}
+
+export interface Briefing {
+  title: string;
+  lines: string[];
+}
+
+export interface EmailDraft {
+  threadId: string;
+  to: string;
+  subject: string;
+  body: string;
+  /** Message-ID of the email being answered, for threading. */
+  inReplyTo?: string;
+}
+
 export interface ConfirmRequest {
   id: string;
   kind: 'create_event';
@@ -130,6 +170,8 @@ export interface AssignmentResult {
   sourceCount: number;
   /** Questions for which no usable source was found. */
   unsupported: number[];
+  /** Number of points the automatic review flagged for the student to check. */
+  reviewNotes: number;
   /** Citation style used (ABNT or APA). */
   style: 'ABNT' | 'APA';
 }
@@ -155,6 +197,27 @@ export interface LumiApi {
     respondConfirm(id: string, approved: boolean): Promise<void>;
     ollamaStatus(): Promise<OllamaStatus>;
   };
+  focus: {
+    get(): Promise<FocusState | undefined>;
+    start(minutes: number): Promise<FocusState>;
+    stop(): Promise<void>;
+  };
+  briefing: {
+    /** Shows the morning briefing right now (also used for previewing). */
+    show(): Promise<void>;
+  };
+  mail: {
+    /** Drafts a reply with the local model. Nothing is saved or sent. */
+    draftReply(emailId: string, instructions?: string): Promise<EmailDraft>;
+    /** Saves the (possibly edited) draft to Gmail Drafts. Never sends it. */
+    saveDraft(draft: EmailDraft): Promise<{ url: string }>;
+    /** Looks for a meeting or deadline in an email; undefined when there is none. */
+    suggestEvent(emailId: string): Promise<NewEventInput | undefined>;
+  };
+  voice: {
+    /** Transcribes 16 kHz mono audio with a local speech model. */
+    transcribe(samples: Float32Array): Promise<string>;
+  };
   docs: {
     /** Opens a native file picker; resolves undefined when cancelled. */
     pickFile(): Promise<PickedFile | undefined>;
@@ -171,7 +234,7 @@ export interface LumiApi {
     openExternal(url: string): Promise<void>;
   };
   on(
-    channel: 'reminder' | 'data:updated' | 'agent:confirm' | 'agent:status' | 'auth:changed' | 'settings:changed',
+    channel: 'reminder' | 'data:updated' | 'agent:confirm' | 'agent:status' | 'auth:changed' | 'settings:changed' | 'focus:changed' | 'briefing',
     listener: (payload: any) => void,
   ): () => void;
 }

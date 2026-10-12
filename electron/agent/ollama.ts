@@ -1,4 +1,7 @@
-import type { OllamaStatus } from '../../shared/types';
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import type { OllamaStatus, Settings } from '../../shared/types';
 
 export interface OllamaToolCall { function: { name: string; arguments: Record<string, unknown> | string } }
 
@@ -63,4 +66,54 @@ export async function ollamaChat(opts: {
 /** Removes <think>…</think> blocks some reasoning models emit. */
 export function stripThinking(text: string) {
   return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+}
+
+export type ModelTask = 'chat' | 'triage' | 'writing';
+
+/** The model for a task: the per-task override when set, otherwise the default model. */
+export function modelFor(settings: Pick<Settings, 'ollamaModel' | 'modelChat' | 'modelTriage' | 'modelWriting'>, task: ModelTask): string {
+  const override = { chat: settings.modelChat, triage: settings.modelTriage, writing: settings.modelWriting }[task]?.trim();
+  return override || settings.ollamaModel;
+}
+
+/** Only local servers are ever started automatically. */
+export function isLocalUrl(baseUrl: string): boolean {
+  try { return ['localhost', '127.0.0.1', '[::1]'].includes(new URL(baseUrl).hostname); } catch { return false; }
+}
+
+/** Likely locations of the Ollama executable, in order. The bare name relies on PATH. */
+export function ollamaCandidates(platform = process.platform, env: NodeJS.ProcessEnv = process.env): string[] {
+  if (platform === 'win32') {
+    return [path.join(env.LOCALAPPDATA ?? '', 'Programs', 'Ollama', 'ollama.exe'), 'ollama.exe'];
+  }
+  if (platform === 'darwin') return ['/Applications/Ollama.app/Contents/Resources/ollama', '/opt/homebrew/bin/ollama', '/usr/local/bin/ollama', 'ollama'];
+  return ['/usr/local/bin/ollama', '/usr/bin/ollama', 'ollama'];
+}
+
+/**
+ * Starts `ollama serve` when it is installed but not running, and waits until it
+ * answers. Resolves with the final status; never throws. The server is left
+ * running when Lumi quits, like it would be if the user had started it.
+ */
+export async function ensureOllama(baseUrl: string, waitMs = 20_000): Promise<OllamaStatus> {
+  const current = await ollamaStatus(baseUrl);
+  if (current.running || !isLocalUrl(baseUrl)) return current;
+
+  for (const exe of ollamaCandidates()) {
+    if (path.isAbsolute(exe) && !fs.existsSync(exe)) continue;
+    const started = await new Promise<boolean>((resolve) => {
+      const child = spawn(exe, ['serve'], { detached: true, stdio: 'ignore', windowsHide: true });
+      child.once('error', () => resolve(false));
+      child.once('spawn', () => { child.unref(); resolve(true); });
+    });
+    if (!started) continue;
+    const deadline = Date.now() + waitMs;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 500));
+      const status = await ollamaStatus(baseUrl);
+      if (status.running) return status;
+    }
+    return ollamaStatus(baseUrl);
+  }
+  return current;
 }

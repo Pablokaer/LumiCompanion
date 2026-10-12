@@ -14,11 +14,13 @@
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "preview:ui": "vite",
-    "dist": "npm run build && electron-builder",
-    "dist:win": "npm run build && electron-builder --win",
-    "dist:mac": "npm run build && electron-builder --mac"
+    "dist": "npm run build && npm run oauth:json && electron-builder",
+    "dist:win": "npm run build && npm run oauth:json && electron-builder --win",
+    "dist:mac": "npm run build && npm run oauth:json && electron-builder --mac",
+    "oauth:json": "node scripts/oauth-json.mjs"
   },
   "dependencies": {
+    "@huggingface/transformers": "4.3.1",
     "mammoth": "1.13.0",
     "pdf-parse": "1.1.1",
     "react": "19.3.0",

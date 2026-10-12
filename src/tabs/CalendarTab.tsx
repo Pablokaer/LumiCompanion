@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { DataSnapshot } from '../../shared/types';
 import { DayAgenda } from '../components/DayAgenda';
+import { PlusIcon } from '../components/Icons';
+import { QuickAdd, toDateInput } from '../components/QuickAdd';
 import { MonthCalendar, Navigator } from '../components/MonthCalendar';
 import { dayKey, eventsByDay, gridRange, monthTitle, sameMonth, shiftMonth, startOfDay } from '../calendar';
 import { useRangeEvents } from '../useRangeEvents';
@@ -9,6 +11,7 @@ import { useRangeEvents } from '../useRangeEvents';
 export function CalendarTab({ data, now }: { data: DataSnapshot; now: Date }) {
   const [month, setMonth] = useState(() => shiftMonth(now, 0));
   const [selected, setSelected] = useState(() => startOfDay(now));
+  const [adding, setAdding] = useState(false);
   const { from, to } = useMemo(() => gridRange(month.getFullYear(), month.getMonth()), [month]);
   const { events, loading, error } = useRangeEvents(from, to, data.lastSync);
   const byDay = useMemo(() => eventsByDay(events), [events]);
@@ -36,10 +39,12 @@ export function CalendarTab({ data, now }: { data: DataSnapshot; now: Date }) {
       />
       <p className="hint cal-count">{loading && !events.length ? 'Loading…' : `${monthCount} event${monthCount === 1 ? '' : 's'} this month`}</p>
       {error && <p className="error">{error}</p>}
-      <MonthCalendar month={month} selected={selected} onSelect={(d) => { setSelected(startOfDay(d)); if (!sameMonth(d, month)) setMonth(shiftMonth(d, 0)); }} byDay={byDay} now={now} />
+      <MonthCalendar month={month} selected={selected} onSelect={(d) => { setSelected(startOfDay(d)); setAdding(false); if (!sameMonth(d, month)) setMonth(shiftMonth(d, 0)); }} onOpen={() => setAdding(true)} byDay={byDay} now={now} />
       <div className="section-head">
         <h3>{selected.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
+        <button className="pill-btn small" onClick={() => setAdding((a) => !a)}><PlusIcon width={14} height={14} /> {adding ? 'Close' : 'Add event'}</button>
       </div>
+      {adding && <QuickAdd key={dayKey(selected)} initial={{ date: toDateInput(selected), time: selected.toDateString() === now.toDateString() ? undefined : '09:00' }} onDone={() => setAdding(false)} />}
       <DayAgenda day={selected} events={byDay.get(dayKey(selected)) ?? []} now={now} />
     </div>
   );

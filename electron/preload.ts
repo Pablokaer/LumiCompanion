@@ -3,7 +3,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { LumiApi } from '../shared/types';
 
-const EVENTS = new Set(['reminder', 'data:updated', 'agent:confirm', 'agent:status', 'auth:changed', 'settings:changed']);
+const EVENTS = new Set(['reminder', 'data:updated', 'agent:confirm', 'agent:status', 'auth:changed', 'settings:changed', 'focus:changed', 'briefing']);
 
 const api: LumiApi = {
   auth: {
@@ -21,6 +21,22 @@ const api: LumiApi = {
     send: (history) => ipcRenderer.invoke('agent:send', history),
     respondConfirm: (id, approved) => ipcRenderer.invoke('agent:respondConfirm', id, approved),
     ollamaStatus: () => ipcRenderer.invoke('agent:ollamaStatus'),
+  },
+  focus: {
+    get: () => ipcRenderer.invoke('focus:get'),
+    start: (minutes) => ipcRenderer.invoke('focus:start', minutes),
+    stop: () => ipcRenderer.invoke('focus:stop'),
+  },
+  briefing: {
+    show: () => ipcRenderer.invoke('briefing:show'),
+  },
+  mail: {
+    draftReply: (emailId, instructions) => ipcRenderer.invoke('mail:draftReply', emailId, instructions),
+    saveDraft: (draft) => ipcRenderer.invoke('mail:saveDraft', draft),
+    suggestEvent: (emailId) => ipcRenderer.invoke('mail:suggestEvent', emailId),
+  },
+  voice: {
+    transcribe: (samples) => ipcRenderer.invoke('voice:transcribe', samples),
   },
   docs: {
     pickFile: () => ipcRenderer.invoke('docs:pickFile'),

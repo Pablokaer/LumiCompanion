@@ -1,4 +1,4 @@
-import type { EmailSummary } from '../../shared/types';
+import type { EmailDraft, EmailSummary } from '../../shared/types';
 import { googleFetch } from './auth';
 
 const BASE = 'https://gmail.googleapis.com/gmail/v1/users/me/messages';
@@ -58,6 +58,82 @@ export async function searchEmails(query: string, max = 30): Promise<EmailSummar
     }),
   );
   return out.sort((a, b) => +new Date(b.date) - +new Date(a.date));
+}
+
+export interface FullEmail {
+  summary: EmailSummary;
+  /** Plain-text body (HTML is stripped when there is no text part). */
+  body: string;
+  /** The Message-ID header, used to thread a reply. */
+  messageId: string;
+  replyTo: string;
+}
+
+interface GPart { mimeType?: string; body?: { data?: string }; parts?: GPart[]; headers?: { name: string; value: string }[] }
+
+const decodeB64Url = (data: string) => Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+
+export function htmlToText(html: string) {
+  return decodeEntities(html
+    .replace(/<(style|script)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<br\s*\/?>|<\/(p|div|li|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' '))
+    .replace(/[ \t]+/g, ' ').replace(/ ?\n ?/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/** Prefers the text/plain part; falls back to stripped HTML. */
+export function extractBody(part?: GPart): string {
+  if (!part) return '';
+  const find = (p: GPart, type: string): string | undefined => {
+    if (p.mimeType === type && p.body?.data) return decodeB64Url(p.body.data);
+    for (const c of p.parts ?? []) { const r = find(c, type); if (r) return r; }
+    return undefined;
+  };
+  const plain = find(part, 'text/plain');
+  if (plain) return plain.trim();
+  const html = find(part, 'text/html');
+  return html ? htmlToText(html) : '';
+}
+
+export async function getFullEmail(id: string): Promise<FullEmail> {
+  const [summary, full] = await Promise.all([
+    getMessage(id),
+    googleFetch<GMessage & { payload?: GPart }>(`${BASE}/${id}?format=full`),
+  ]);
+  const header = (name: string) => full.payload?.headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? '';
+  return {
+    summary,
+    body: extractBody(full.payload),
+    messageId: header('Message-ID'),
+    replyTo: parseFrom(header('Reply-To') || header('From')).email,
+  };
+}
+
+const oneLine = (s: string) => s.replace(/[\r\n]+/g, ' ').trim();
+const encodeHeader = (s: string) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${Buffer.from(s, 'utf8').toString('base64')}?=`);
+
+/** Builds the base64url RFC 822 message Gmail's drafts API expects. Header values cannot contain line breaks. */
+export function buildRawMessage(d: EmailDraft): string {
+  const headers = [
+    `To: ${oneLine(d.to)}`,
+    `Subject: ${encodeHeader(oneLine(d.subject))}`,
+    ...(d.inReplyTo ? [`In-Reply-To: ${oneLine(d.inReplyTo)}`, `References: ${oneLine(d.inReplyTo)}`] : []),
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: base64',
+  ];
+  const body = (Buffer.from(d.body, 'utf8').toString('base64').match(/.{1,76}/g) ?? []).join('\r\n');
+  return Buffer.from(`${headers.join('\r\n')}\r\n\r\n${body}`, 'utf8').toString('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/** Saves a draft in the user's Gmail Drafts folder. This never sends anything. */
+export async function createDraft(d: EmailDraft): Promise<{ id: string }> {
+  return googleFetch<{ id: string }>('https://gmail.googleapis.com/gmail/v1/users/me/drafts', {
+    method: 'POST',
+    body: JSON.stringify({ message: { raw: buildRawMessage(d), threadId: d.threadId } }),
+  });
 }
 
 export const listRecentInbox = (days: number) => searchEmails(`in:inbox newer_than:${days}d -in:chats`, 40);

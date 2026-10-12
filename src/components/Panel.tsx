@@ -1,5 +1,5 @@
 import { useState, type Dispatch, type SetStateAction } from 'react';
-import type { AuthState, DataSnapshot, ReminderPayload, Settings } from '../../shared/types';
+import type { AuthState, Briefing, DataSnapshot, FocusState, ReminderPayload, Settings } from '../../shared/types';
 import { api } from '../api';
 import type { ChatState } from '../App';
 import { ChatTab } from '../tabs/ChatTab';
@@ -7,6 +7,8 @@ import { InboxTab } from '../tabs/InboxTab';
 import { SettingsTab } from '../tabs/SettingsTab';
 import { CalendarTab } from '../tabs/CalendarTab';
 import { TodayTab } from '../tabs/TodayTab';
+import { BriefingCard } from './BriefingCard';
+import { formatClock, useRemaining } from './FocusCard';
 import { CalendarIcon, ChatIcon, CloseIcon, GearIcon, MailIcon, MinimizeIcon, OrbitIcon, RefreshIcon } from './Icons';
 import { Mascot, type Mood } from './Mascot';
 
@@ -29,6 +31,9 @@ interface Props {
   setChat: Dispatch<SetStateAction<ChatState>>;
   onCollapse(): void;
   onData(d: DataSnapshot): void;
+  focus?: FocusState;
+  briefing?: Briefing;
+  onDismissBriefing(): void;
 }
 
 const TABS: { id: Tab; label: string; Icon: typeof OrbitIcon }[] = [
@@ -41,6 +46,7 @@ const TABS: { id: Tab; label: string; Icon: typeof OrbitIcon }[] = [
 
 export function Panel(p: Props) {
   const [syncing, setSyncing] = useState(false);
+  const remaining = useRemaining(p.focus);
   const highCount = p.data.emails.filter((e) => e.level === 'high').length;
 
   const refresh = async () => {
@@ -55,7 +61,7 @@ export function Panel(p: Props) {
           <Mascot mood={p.mood} size={40} title={p.name} />
           <div>
             <div className="brand-name">{p.name}</div>
-            <div className="brand-sub">{syncing ? 'Syncing the cosmos…' : p.data.error ? 'Sync problem — retrying' : 'Your space companion'}</div>
+            <div className="brand-sub">{p.focus ? `Focus · ${formatClock(remaining)} left` : syncing ? 'Syncing the cosmos…' : p.data.error ? 'Sync problem — retrying' : 'Your space companion'}</div>
           </div>
         </div>
         <div className="header-actions no-drag">
@@ -74,7 +80,8 @@ export function Panel(p: Props) {
       )}
 
       <main className="panel-body">
-        {p.tab === 'today' && <TodayTab events={p.data.events} now={p.now} name={p.auth.profile?.name} />}
+        {p.briefing && <BriefingCard briefing={p.briefing} onDismiss={p.onDismissBriefing} />}
+        {p.tab === 'today' && <TodayTab events={p.data.events} now={p.now} name={p.auth.profile?.name} focus={p.focus} focusMinutes={p.settings.focusMinutes} />}
         {p.tab === 'calendar' && <CalendarTab data={p.data} now={p.now} />}
         {p.tab === 'inbox' && <InboxTab emails={p.data.emails} now={p.now} />}
         {p.tab === 'chat' && <ChatTab chat={p.chat} setChat={p.setChat} name={p.name} />}

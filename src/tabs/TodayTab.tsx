@@ -1,10 +1,12 @@
-import { useState, type FormEvent } from 'react';
-import type { CalendarEvent } from '../../shared/types';
+import { useState } from 'react';
+import type { CalendarEvent, FocusState } from '../../shared/types';
 import { api } from '../api';
+import { FocusCard } from '../components/FocusCard';
 import { ExternalIcon, PinIcon, PlusIcon, VideoIcon } from '../components/Icons';
+import { QuickAdd } from '../components/QuickAdd';
 import { fmtTime, greeting, groupByDay, nextEvent, relative } from '../format';
 
-export function TodayTab({ events, now, name }: { events: CalendarEvent[]; now: Date; name?: string }) {
+export function TodayTab({ events, now, name, focus, focusMinutes }: { events: CalendarEvent[]; now: Date; name?: string; focus?: FocusState; focusMinutes: number }) {
   const [adding, setAdding] = useState(false);
   const next = nextEvent(events, now);
   const groups = groupByDay(events, now);
@@ -16,6 +18,8 @@ export function TodayTab({ events, now, name }: { events: CalendarEvent[]; now: 
         <h2>{greeting(now)}{name ? `, ${name}` : ''}</h2>
         <p>{todayCount ? `${todayCount} event${todayCount > 1 ? 's' : ''} left in today’s orbit.` : 'Nothing else on today — clear skies ✦'}</p>
       </section>
+
+      <FocusCard focus={focus} defaultMinutes={focusMinutes} />
 
       {next && (
         <section className="next-card">
@@ -54,46 +58,5 @@ export function TodayTab({ events, now, name }: { events: CalendarEvent[]; now: 
         </section>
       ))}
     </div>
-  );
-}
-
-function QuickAdd({ onDone }: { onDone(): void }) {
-  const today = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState(`${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`);
-  const [time, setTime] = useState(`${pad(Math.min(23, today.getHours() + 1))}:00`);
-  const [duration, setDuration] = useState(60);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
-    setBusy(true);
-    setError(undefined);
-    try {
-      await api.data.createEvent({ title, start: `${date}T${time}`, durationMinutes: duration });
-      onDone();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <form className="quick-add" onSubmit={submit}>
-      <input autoFocus placeholder="What’s happening?" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Event title" />
-      <div className="row">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
-        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} aria-label="Time" />
-        <select value={duration} onChange={(e) => setDuration(Number(e.target.value))} aria-label="Duration">
-          {[15, 30, 45, 60, 90, 120].map((m) => <option key={m} value={m}>{m < 60 ? `${m} min` : `${m / 60} h`}</option>)}
-        </select>
-      </div>
-      {error && <p className="error">{error}</p>}
-      <button className="primary-btn" disabled={busy || !title.trim()}>{busy ? 'Adding…' : 'Add to Google Calendar'}</button>
-    </form>
   );
 }

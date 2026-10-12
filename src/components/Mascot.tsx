@@ -1,4 +1,6 @@
 import { useMemo } from 'react';
+import type { Accessory } from '../../shared/types';
+import { SKINS, useAppearance } from '../appearance';
 
 export type Mood = 'idle' | 'happy' | 'alert' | 'thinking' | 'sleepy';
 
@@ -24,6 +26,8 @@ function starPath(cx: number, cy: number, outer: number, inner: number) {
 export function Mascot({ mood = 'idle', size = 140, onClick, title }: Props) {
   const d = useMemo(() => starPath(100, 108, 70, 37), []);
   const id = useMemo(() => Math.random().toString(36).slice(2, 8), []);
+  const { skin, accessory } = useAppearance();
+  const stops = (SKINS[skin] ?? SKINS.classic).stops;
 
   return (
     <button
@@ -37,10 +41,10 @@ export function Mascot({ mood = 'idle', size = 140, onClick, title }: Props) {
       <svg viewBox="0 0 200 200" width={size} height={size} aria-hidden="true">
         <defs>
           <radialGradient id={`body-${id}`} cx="40%" cy="35%" r="75%">
-            <stop offset="0%" stopColor="#bfe6ff" />
-            <stop offset="35%" stopColor="#5cb8ff" />
-            <stop offset="75%" stopColor="#2f7bff" />
-            <stop offset="100%" stopColor="#1e4fd8" />
+            <stop offset="0%" stopColor={stops[0]} />
+            <stop offset="35%" stopColor={stops[1]} />
+            <stop offset="75%" stopColor={stops[2]} />
+            <stop offset="100%" stopColor={stops[3]} />
           </radialGradient>
           <radialGradient id={`halo-${id}`} cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="var(--mascot-halo)" stopOpacity="0.55" />
@@ -62,6 +66,7 @@ export function Mascot({ mood = 'idle', size = 140, onClick, title }: Props) {
           <ellipse cx="76" cy="72" rx="14" ry="7" fill="#fff" opacity="0.45" transform="rotate(-30 76 72)" />
 
           <Face mood={mood} />
+          <Gear accessory={accessory} />
         </g>
       </svg>
     </button>
@@ -119,4 +124,44 @@ function Face({ mood }: { mood: Mood }) {
       {mood === 'sleepy' && <ellipse cx="100" cy="128" rx="4" ry="3" fill={ink} />}
     </g>
   );
+}
+
+/** Small accessories drawn on top of the star. Coordinates match the 200×200 mascot box. */
+function Gear({ accessory }: { accessory: Accessory }) {
+  switch (accessory) {
+    case 'hat':
+      return (
+        <g transform="rotate(14 100 40)">
+          <path d="M100 4 L78 50 L122 50 Z" fill="#ff7ac6" stroke="#b83e86" strokeWidth="2.5" strokeLinejoin="round" />
+          <path d="M91 28 L109 28 M85 40 L115 40" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" opacity="0.85" />
+          <circle cx="100" cy="5" r="6" fill="#ffe066" stroke="#c9a400" strokeWidth="2" />
+        </g>
+      );
+    case 'crown':
+      return (
+        <g>
+          <path d="M76 44 L80 16 L91 29 L100 10 L109 29 L120 16 L124 44 Z" fill="#ffc83d" stroke="#b8860b" strokeWidth="3" strokeLinejoin="round" />
+          <circle cx="100" cy="36" r="3.5" fill="#ff5c8a" />
+          <circle cx="86" cy="38" r="2.5" fill="#5cd6ff" />
+          <circle cx="114" cy="38" r="2.5" fill="#5cd6ff" />
+        </g>
+      );
+    case 'glasses':
+      return (
+        <g fill="rgba(255,255,255,0.18)" stroke="#0b1a4a" strokeWidth="4">
+          <circle cx="82" cy="106" r="16" />
+          <circle cx="118" cy="106" r="16" />
+          <path d="M98 106 h4" fill="none" strokeLinecap="round" />
+        </g>
+      );
+    case 'bow':
+      return (
+        <g transform="translate(138 48) rotate(18)">
+          <path d="M0 0 L-20 -12 L-20 12 Z M0 0 L20 -12 L20 12 Z" fill="#ff5c8a" stroke="#b8305c" strokeWidth="2.5" strokeLinejoin="round" />
+          <circle r="5" fill="#ff8fb0" stroke="#b8305c" strokeWidth="2" />
+        </g>
+      );
+    default:
+      return null;
+  }
 }

@@ -2,7 +2,7 @@ import type {
   AgentStatus, CalendarEvent, ChatMessage, ConfirmRequest, EmailSummary, NewEventInput, ScoredEmail, Settings, UserProfile,
 } from '../../shared/types';
 import { formatLocalDateTime, localTimeZone } from '../services/time';
-import { ollamaChat, type OllamaMessage, type OllamaTool } from './ollama';
+import { modelFor, ollamaChat, type OllamaMessage, type OllamaTool } from './ollama';
 
 export interface AgentDeps {
   getSettings(): Settings;
@@ -124,7 +124,7 @@ export async function runAgent(history: ChatMessage[], deps: AgentDeps): Promise
   try {
     for (let step = 0; step < MAX_STEPS; step++) {
       deps.onStatus({ state: 'thinking' });
-      const reply = await chat({ baseUrl: settings.ollamaUrl, model: settings.ollamaModel, messages, tools: TOOLS });
+      const reply = await chat({ baseUrl: settings.ollamaUrl, model: modelFor(settings, 'chat'), messages, tools: TOOLS });
       messages.push(reply);
       if (!reply.tool_calls?.length) return reply.content || '✦';
 
@@ -194,7 +194,7 @@ export async function aiTriageEmails(
   try {
     const reply = await chat({
       baseUrl: settings.ollamaUrl,
-      model: settings.ollamaModel,
+      model: modelFor(settings, 'triage'),
       format: 'json',
       timeoutMs: 90_000,
       messages: [

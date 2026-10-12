@@ -12,7 +12,7 @@ import { addMinutesLocal, parseLocal } from '../electron/services/time';
 vi.mock('electron', () => ({ app: {}, safeStorage: {}, shell: {} }));
 
 const settings: Settings = {
-  mascotName: 'Lumi', widgetMode: 'desktop', widgetView: 'mascot', launchAtLogin: false, reminderLeadMinutes: [15, 5], systemNotifications: true,
+  mascotName: 'Lumi', widgetMode: 'desktop', widgetView: 'mascot', skin: 'classic', accessory: 'none', autoStartOllama: false, morningBriefing: false, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', modelChat: '', modelTriage: '', modelWriting: '', launchAtLogin: false, reminderLeadMinutes: [15, 5], systemNotifications: true,
   ollamaUrl: 'http://x', ollamaModel: 'm', aiEmailTriage: true, emailLookbackDays: 2,
 };
 

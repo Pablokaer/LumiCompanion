@@ -1,5 +1,7 @@
 appId: com.finperiti.lumi
 productName: Lumi
+# e.g. Lumi-0.1.0-win-x64.exe, Lumi-0.1.0-mac-arm64.dmg, Lumi-0.1.0-linux-x86_64.AppImage
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 directories:
   output: release
   buildResources: build
@@ -8,14 +10,29 @@ files:
   - dist-electron/**
   - assets/**
   - package.json
+  - "!**/*.map"
+  # Speech-to-text is transformers.js + onnxruntime-node (Node build); the browser runtime and other CPUs are not needed.
+  - "!node_modules/onnxruntime-web/**"
+  - "!node_modules/@img/sharp-wasm32/**"
+# Native binaries and their shared libraries must live outside the asar archive.
+asarUnpack:
+  - node_modules/onnxruntime-node/**
+  - node_modules/sharp/**
+  - node_modules/@img/**
 extraResources:
-  # Optional: drop your Google OAuth "Desktop app" client JSON here before packaging.
+  # Your Google OAuth "Desktop app" client JSON (git-ignored). Run `npm run oauth:json` to create it from .env.
   - from: google-oauth.json
     to: google-oauth.json
     filter: ["**/*"]
 win:
-  target: nsis
+  target:
+    - target: nsis
+      arch: [x64]
   icon: build/icon.png
+  files:
+    - "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**"
+    - "!node_modules/onnxruntime-node/bin/napi-v6/linux/**"
+    - "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**"
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
@@ -25,3 +42,20 @@ mac:
   category: public.app-category.productivity
   extendInfo:
     LSUIElement: true
+    NSMicrophoneUsageDescription: Lumi uses the microphone for voice input in the chat.
+  files:
+    - "!node_modules/onnxruntime-node/bin/napi-v6/win32/**"
+    - "!node_modules/onnxruntime-node/bin/napi-v6/linux/**"
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  icon: build/icon.png
+  category: Utility
+  maintainer: Finperiti <pablo@finperiti.com>
+  files:
+    - "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**"
+    - "!node_modules/onnxruntime-node/bin/napi-v6/win32/**"
+    - "!node_modules/onnxruntime-node/bin/napi-v6/linux/arm64/**"

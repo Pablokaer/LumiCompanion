@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
-import type { ReminderPayload, WidgetView } from '../../shared/types';
+import type { Briefing, FocusState, ReminderPayload, WidgetView } from '../../shared/types';
 import { addDays, dayKey, eventsByDay, gridRange, monthTitle, sameMonth, shiftMonth, startOfDay } from '../calendar';
 import { useRangeEvents } from '../useRangeEvents';
+import { BriefingCard } from './BriefingCard';
 import { DayAgenda } from './DayAgenda';
+import { FocusStrip } from './FocusCard';
 import { Mascot, type Mood } from './Mascot';
 import { MonthCalendar, Navigator } from './MonthCalendar';
 
@@ -13,6 +15,9 @@ interface Props {
   now: Date;
   reminder?: ReminderPayload;
   version?: string;
+  focus?: FocusState;
+  briefing?: Briefing;
+  onDismissBriefing(): void;
   onDismissReminder(): void;
   onExpand(): void;
   onPoke(): void;
@@ -23,7 +28,7 @@ interface Props {
  * or a single day's agenda. The star stays in the corner (click to open Lumi) and
  * reminders still appear as a banner.
  */
-export function CalendarWidget({ view, mood, name, now, reminder, version, onDismissReminder, onExpand, onPoke }: Props) {
+export function CalendarWidget({ view, mood, name, now, reminder, version, focus, briefing, onDismissBriefing, onDismissReminder, onExpand, onPoke }: Props) {
   const [selected, setSelected] = useState(() => startOfDay(now));
   const month = shiftMonth(selected, 0);
   const rangeKey = dayKey(view === 'month' ? month : selected);
@@ -66,7 +71,10 @@ export function CalendarWidget({ view, mood, name, now, reminder, version, onDis
         </div>
       )}
 
+      {focus && <FocusStrip focus={focus} />}
+
       <div className="cal-widget-body">
+        {briefing && <BriefingCard briefing={briefing} onDismiss={onDismissBriefing} />}
         {view === 'month' && <MonthCalendar month={month} selected={selected} onSelect={(d) => setSelected(startOfDay(d))} byDay={byDay} now={now} />}
         {view === 'month' && <div className="cal-day-title">{selected.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}</div>}
         {error && <p className="error">{error}</p>}

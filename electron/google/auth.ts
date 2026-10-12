@@ -17,11 +17,12 @@ export const SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/documents',
+  'https://www.googleapis.com/auth/gmail.compose',
 ];
 
-/** True when the stored token was granted the Google Docs scope (older sign-ins were not). */
-export function hasDocsScope(): boolean {
-  return !!loadTokens()?.scope?.includes('/auth/documents');
+/** True when the stored token was granted a scope (older sign-ins predate newer scopes). */
+export function hasScope(name: 'documents' | 'gmail.compose'): boolean {
+  return !!loadTokens()?.scope?.includes(`/auth/${name}`);
 }
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';

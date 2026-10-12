@@ -18,8 +18,8 @@ export function Navigator({ title, onPrev, onNext, onToday, todayActive, unit }:
   );
 }
 
-export function MonthCalendar({ month, selected, onSelect, byDay, now }: {
-  month: Date; selected: Date; onSelect(d: Date): void; byDay: Map<string, CalendarEvent[]>; now: Date;
+export function MonthCalendar({ month, selected, onSelect, onOpen, byDay, now }: {
+  month: Date; selected: Date; onSelect(d: Date): void; /** Double-click on a day. */ onOpen?(d: Date): void; byDay: Map<string, CalendarEvent[]>; now: Date;
 }) {
   const days = monthGrid(month.getFullYear(), month.getMonth());
   const todayKey = dayKey(now);
@@ -42,6 +42,7 @@ export function MonthCalendar({ month, selected, onSelect, byDay, now }: {
               className={cls}
               role="gridcell"
               onClick={() => onSelect(d)}
+              onDoubleClick={() => onOpen?.(d)}
               aria-selected={key === selectedKey}
               aria-label={`${d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}, ${events.length} event${events.length === 1 ? '' : 's'}`}
             >

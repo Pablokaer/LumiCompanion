@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
-import type { AuthState, OllamaStatus, Settings, WidgetView } from '../../shared/types';
+import type { Accessory, AuthState, OllamaStatus, Settings, Skin, WidgetView } from '../../shared/types';
 import { api } from '../api';
+import { ACCESSORIES, SKINS } from '../appearance';
 
 const LEAD_OPTIONS = [60, 30, 15, 10, 5, 1];
+
+const TASK_MODELS: { key: 'modelChat' | 'modelTriage' | 'modelWriting'; label: string; hint: string }[] = [
+  { key: 'modelChat', label: 'Chat and event extraction', hint: 'Must support tool calling (e.g. qwen2.5:7b).' },
+  { key: 'modelTriage', label: 'Email triage', hint: 'A small, fast model is enough.' },
+  { key: 'modelWriting', label: 'Writing (answers and email drafts)', hint: 'A larger model writes better text.' },
+];
 
 const VIEW_OPTIONS: { id: WidgetView; label: string; hint: string }[] = [
   { id: 'mascot', label: 'Star', hint: 'Just the star in a circle, with reminders and notifications.' },
@@ -51,6 +58,49 @@ export function SettingsTab({ settings, onSettings, auth, onSignedOut }: {
       </section>
 
       <section className="card">
+        <h3>Appearance</h3>
+        <div className="field">
+          <span>Star colour</span>
+          <div className="chips" role="radiogroup" aria-label="Star colour">
+            {(Object.keys(SKINS) as Skin[]).map((id) => (
+              <button key={id} role="radio" aria-checked={settings.skin === id} className={`chip skin${settings.skin === id ? ' on' : ''}`} onClick={() => update({ skin: id })}>
+                <i className="swatch" style={{ background: `linear-gradient(135deg, ${SKINS[id].stops[1]}, ${SKINS[id].stops[3]})` }} />{SKINS[id].label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="field">
+          <span>Accessory</span>
+          <div className="chips" role="radiogroup" aria-label="Accessory">
+            {(Object.keys(ACCESSORIES) as Accessory[]).map((id) => (
+              <button key={id} role="radio" aria-checked={settings.accessory === id} className={`chip${settings.accessory === id ? ' on' : ''}`} onClick={() => update({ accessory: id })}>{ACCESSORIES[id]}</button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="card">
+        <h3>Morning briefing</h3>
+        <Toggle label="Show a daily briefing" hint="Today’s events and important emails, once a day." checked={settings.morningBriefing} onChange={(v) => update({ morningBriefing: v })} />
+        <label className="field">
+          <span>Show it after</span>
+          <input type="time" value={settings.briefingTime} disabled={!settings.morningBriefing} onChange={(e) => e.target.value && update({ briefingTime: e.target.value })} />
+        </label>
+        <button className="pill-btn ghost small" onClick={() => api.briefing.show()}>Preview now</button>
+      </section>
+
+      <section className="card">
+        <h3>Focus timer</h3>
+        <label className="field">
+          <span>Default session length</span>
+          <select value={settings.focusMinutes} onChange={(e) => update({ focusMinutes: Number(e.target.value) })}>
+            {[...new Set([15, 25, 30, 45, 60, 90, settings.focusMinutes])].sort((a, b) => a - b).map((m) => <option key={m} value={m}>{m} min</option>)}
+          </select>
+        </label>
+        <p className="hint">Start a session from the Today tab. Reminders more than 5 minutes away are held back until it ends.</p>
+      </section>
+
+      <section className="card">
         <h3>Reminders</h3>
         <p className="hint">Remind me before each event:</p>
         <div className="chips">
@@ -70,15 +120,35 @@ export function SettingsTab({ settings, onSettings, auth, onSignedOut }: {
           <span>Server URL</span>
           <input value={ollamaUrl} onChange={(e) => setOllamaUrl(e.target.value)} onBlur={() => ollamaUrl !== settings.ollamaUrl && update({ ollamaUrl })} />
         </label>
+        <Toggle label="Start Ollama automatically" hint="If it is installed but stopped, Lumi launches it for you." checked={settings.autoStartOllama} onChange={(v) => update({ autoStartOllama: v })} />
         <label className="field">
-          <span>Model</span>
+          <span>Default model</span>
           <select value={settings.ollamaModel} onChange={(e) => update({ ollamaModel: e.target.value })}>
             {models.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
         </label>
+        {TASK_MODELS.map(({ key, label, hint }) => (
+          <label key={key} className="field">
+            <span>{label}</span>
+            <select value={settings[key]} onChange={(e) => update({ [key]: e.target.value } as Partial<Settings>)}>
+              <option value="">Default ({settings.ollamaModel})</option>
+              {models.filter((m) => m !== settings.ollamaModel).map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <span className="hint">{hint}</span>
+          </label>
+        ))}
         {ollama?.running && !ollama.models.includes(settings.ollamaModel) && (
           <p className="hint warn">Model not installed. Run <code>ollama pull {settings.ollamaModel}</code></p>
         )}
+        <label className="field">
+          <span>Voice input language</span>
+          <select value={settings.voiceLanguage} onChange={(e) => update({ voiceLanguage: e.target.value as Settings['voiceLanguage'] })}>
+            <option value="system">Same as my computer</option>
+            <option value="pt">Português</option>
+            <option value="en">English</option>
+            <option value="es">Español</option>
+          </select>
+        </label>
         <Toggle label="AI email triage" hint="Let the local model help rank your inbox." checked={settings.aiEmailTriage} onChange={(v) => update({ aiEmailTriage: v })} />
         <label className="field">
           <span>Look at emails from the last</span>

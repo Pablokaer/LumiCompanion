@@ -53,3 +53,6 @@ export const ChevronLeftIcon = (p: SVGProps<SVGSVGElement>) => (
 export const ChevronRightIcon = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><path d="m9 6 6 6-6 6" /></svg>
 );
+export const MicIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+);

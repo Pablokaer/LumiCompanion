@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  AgentStatus, AuthState, ChatMessage, ConfirmRequest, DataSnapshot, ReminderPayload, Settings, WindowMode,
+  AgentStatus, AuthState, Briefing, ChatMessage, ConfirmRequest, DataSnapshot, FocusState, ReminderPayload, Settings, WindowMode,
 } from '../shared/types';
 import { api } from './api';
+import { AppearanceProvider, skinVars } from './appearance';
 import { CalendarWidget } from './components/CalendarWidget';
 import { CompactView } from './components/CompactView';
 import { LoginScreen } from './components/LoginScreen';
@@ -28,6 +29,8 @@ export default function App() {
   const [happyUntil, setHappyUntil] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const [chat, setChat] = useState<ChatState>({ messages: [], status: { state: 'idle' } });
+  const [focus, setFocus] = useState<FocusState>();
+  const [briefing, setBriefing] = useState<Briefing>();
   const reminderTimer = useRef<number | undefined>(undefined);
 
   // ---- bootstrapping & subscriptions ----
@@ -35,10 +38,13 @@ export default function App() {
     api.auth.getState().then(setAuth);
     api.settings.get().then(setSettings);
     api.data.get().then(setData);
+    api.focus.get().then(setFocus);
     const offs = [
       api.on('data:updated', setData),
       api.on('auth:changed', setAuth),
       api.on('settings:changed', () => api.settings.get().then(setSettings)),
+      api.on('focus:changed', (f?: FocusState) => { setFocus(f ?? undefined); if (!f) setHappyUntil(Date.now() + 6000); }),
+      api.on('briefing', (b: Briefing) => setBriefing(b)),
       api.on('agent:status', (status: AgentStatus) => setChat((c) => ({ ...c, status }))),
       api.on('agent:confirm', (confirm: ConfirmRequest) => {
         setChat((c) => ({ ...c, confirm }));
@@ -73,17 +79,19 @@ export default function App() {
 
   const mood: Mood = useMemo(() => {
     if (reminder) return 'alert';
-    if (chat.status.state !== 'idle') return 'thinking';
+    if (chat.status.state !== 'idle' || focus) return 'thinking';
     if (Date.now() < happyUntil) return 'happy';
     if (isNight(now) && minutesToNext > 60) return 'sleepy';
     return 'idle';
-  }, [reminder, chat.status.state, happyUntil, now, minutesToNext]);
+  }, [reminder, chat.status.state, focus, happyUntil, now, minutesToNext]);
 
   const name = settings?.mascotName ?? 'Lumi';
   const speech = useMemo(() => {
     const lines: string[] = [];
     if (reminder) return [reminder.message];
     if (chat.status.state !== 'idle') return ['Thinking among the stars…'];
+    if (briefing) return [briefing.title, ...briefing.lines.slice(0, 5).map((l) => l.replace(/^•\s*/, ''))];
+    if (focus) return [`Focus time — ${Math.max(1, Math.ceil((focus.endsAt - Date.now()) / 60_000))} min left ✦`];
     if (upcoming && minutesToNext <= 60) lines.push(`“${upcoming.title}” ${minutesToNext <= 0 ? 'is happening now' : `in ${minutesToNext} min`} ✦`);
     else if (upcoming) lines.push(`Next up: ${upcoming.title} at ${fmtTime(upcoming.start)}`);
     if (highEmails.length) lines.push(`${highEmails.length} important email${highEmails.length > 1 ? 's' : ''} waiting for you`);
@@ -91,23 +99,28 @@ export default function App() {
     lines.push(`${greeting(now)}${first ? `, ${first}` : ''}!`);
     if (!upcoming) lines.push('Your sky is clear — no more events today 🌌');
     return lines;
-  }, [reminder, chat.status.state, upcoming, minutesToNext, highEmails.length, auth?.profile?.name, now]);
+  }, [reminder, briefing, focus, chat.status.state, upcoming, minutesToNext, highEmails.length, auth?.profile?.name, now]);
 
   const poke = () => setHappyUntil(Date.now() + 2500);
 
   if (!auth || !settings) return <div className="shell loading"><Starfield /></div>;
 
+  const appearance = { skin: settings.skin, accessory: settings.accessory };
+
   if (!auth.signedIn) {
     return (
-      <div className="shell expanded">
-        <Starfield />
-        <LoginScreen auth={auth} mascotName={name} onSignedIn={setAuth} />
-      </div>
+      <AppearanceProvider value={appearance}>
+        <div className="shell expanded" style={skinVars(settings.skin)}>
+          <Starfield />
+          <LoginScreen auth={auth} mascotName={name} onSignedIn={setAuth} />
+        </div>
+      </AppearanceProvider>
     );
   }
 
   return (
-    <div className={`shell ${mode}${reminder ? ' has-reminder' : ''}`}>
+    <AppearanceProvider value={appearance}>
+    <div className={`shell ${mode}${reminder ? ' has-reminder' : ''}`} style={skinVars(settings.skin)}>
       {mode === 'expanded' && <Starfield />}
       {mode === 'compact' && settings.widgetView !== 'mascot' ? (
         <CalendarWidget
@@ -117,6 +130,9 @@ export default function App() {
           now={now}
           reminder={reminder}
           version={data.lastSync}
+          focus={focus}
+          briefing={briefing}
+          onDismissBriefing={() => setBriefing(undefined)}
           onDismissReminder={() => setReminder(undefined)}
           onExpand={() => { setReminder(undefined); changeMode('expanded'); }}
           onPoke={poke}
@@ -128,7 +144,7 @@ export default function App() {
           lines={speech}
           upcoming={upcoming}
           now={now}
-          onExpand={() => { setReminder(undefined); changeMode('expanded'); }}
+          onExpand={() => { setReminder(undefined); setBriefing(undefined); changeMode('expanded'); }}
           onPoke={poke}
         />
       ) : (
@@ -149,8 +165,12 @@ export default function App() {
           setChat={setChat}
           onCollapse={() => changeMode('compact')}
           onData={setData}
+          focus={focus}
+          briefing={briefing}
+          onDismissBriefing={() => setBriefing(undefined)}
         />
       )}
     </div>
+    </AppearanceProvider>
   );
 }

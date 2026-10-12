@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { AssignmentResult, Settings } from '../../shared/types';
-import { ollamaChat } from '../agent/ollama';
+import { modelFor, ollamaChat, type ModelTask } from '../agent/ollama';
 import { createGoogleDoc, para, type Para } from './googleDocs';
 import { extractText } from './extract';
 import {
@@ -39,9 +39,30 @@ const ABSTRACT_CHARS = 900;
 
 const LANGUAGE_NAME = { pt: 'Brazilian Portuguese', en: 'English', es: 'Spanish' } as const;
 const LABELS = {
-  pt: { question: 'Questão', references: 'Referências', note: 'Respostas elaboradas com apoio de IA local; as fontes foram obtidas do índice OpenAlex. Confira o conteúdo e as referências antes de entregar.', unsupported: 'Atenção: não foram encontradas fontes para esta questão. A resposta abaixo não tem citações e deve ser verificada.' },
-  en: { question: 'Question', references: 'References', note: 'Answers drafted with a local AI; sources were retrieved from the OpenAlex index. Check the content and references before submitting.', unsupported: 'Warning: no sources were found for this question. The answer below has no citations and must be verified.' },
-  es: { question: 'Pregunta', references: 'Referencias', note: 'Respuestas elaboradas con apoyo de IA local; las fuentes se obtuvieron del índice OpenAlex. Revise el contenido y las referencias antes de entregar.', unsupported: 'Atención: no se encontraron fuentes para esta pregunta. La respuesta no tiene citas y debe verificarse.' },
+  pt: { review: {
+      title: 'Notas de revisão',
+      intro: 'Pontos que a revisão automática pede para você conferir. Apague esta seção antes de entregar.',
+      noCitation: (n: number) => `O parágrafo ${n} não tem citação.`,
+      noneCited: (n: number) => `A resposta não cita nenhuma das ${n} fontes encontradas.`,
+      dropped: (n: number) => `${n} citação(ões) sem fonte correspondente foram removidas.`,
+      unsupported: (c: string) => `Possível afirmação sem apoio nas fontes: “${c}”`,
+    }, question: 'Questão', references: 'Referências', note: 'Respostas elaboradas com apoio de IA local; as fontes foram obtidas do índice OpenAlex. Confira o conteúdo e as referências antes de entregar.', unsupported: 'Atenção: não foram encontradas fontes para esta questão. A resposta abaixo não tem citações e deve ser verificada.' },
+  en: { review: {
+      title: 'Review notes',
+      intro: 'Points the automatic review asks you to check. Delete this section before submitting.',
+      noCitation: (n: number) => `Paragraph ${n} has no citation.`,
+      noneCited: (n: number) => `The answer cites none of the ${n} retrieved sources.`,
+      dropped: (n: number) => `${n} citation(s) with no matching source were removed.`,
+      unsupported: (c: string) => `Possibly unsupported by the sources: “${c}”`,
+    }, question: 'Question', references: 'References', note: 'Answers drafted with a local AI; sources were retrieved from the OpenAlex index. Check the content and references before submitting.', unsupported: 'Warning: no sources were found for this question. The answer below has no citations and must be verified.' },
+  es: { review: {
+      title: 'Notas de revisión',
+      intro: 'Puntos que la revisión automática le pide comprobar. Elimine esta sección antes de entregar.',
+      noCitation: (n: number) => `El párrafo ${n} no tiene cita.`,
+      noneCited: (n: number) => `La respuesta no cita ninguna de las ${n} fuentes encontradas.`,
+      dropped: (n: number) => `Se eliminaron ${n} cita(s) sin fuente correspondiente.`,
+      unsupported: (c: string) => `Posible afirmación sin respaldo en las fuentes: “${c}”`,
+    }, question: 'Pregunta', references: 'Referencias', note: 'Respuestas elaboradas con apoyo de IA local; las fuentes se obtuvieron del índice OpenAlex. Revise el contenido y las referencias antes de entregar.', unsupported: 'Atención: no se encontraron fuentes para esta pregunta. La respuesta no tiene citas y debe verificarse.' },
 } as const;
 
 export async function answerAssignment(file: string, deps: AssignmentDeps): Promise<AssignmentResult> {
@@ -50,9 +71,9 @@ export async function answerAssignment(file: string, deps: AssignmentDeps): Prom
   const createDoc = deps.createDoc ?? createGoogleDoc;
   const readFile = deps.readFile ?? extractText;
   const { settings, onProgress } = deps;
-  const ask = (system: string, user: string, json = false) =>
+  const ask: Ask = (system, user, json = false, task = 'chat') =>
     chat({
-      baseUrl: settings.ollamaUrl, model: settings.ollamaModel, numCtx: NUM_CTX, timeoutMs: 300_000,
+      baseUrl: settings.ollamaUrl, model: modelFor(settings, task), numCtx: NUM_CTX, timeoutMs: 300_000,
       format: json ? 'json' : undefined,
       messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
     }).then((r) => r.content);
@@ -66,15 +87,18 @@ export async function answerAssignment(file: string, deps: AssignmentDeps): Prom
   const used = new Map<string, Source>();
   const unsupported: number[] = [];
   const body: Para[] = [];
+  const notes: string[] = [];
 
   for (const [i, q] of parsed.questions.entries()) {
     const tag = `Question ${i + 1}/${parsed.questions.length}`;
     onProgress(`${tag}: searching sources…`);
     const sources = await gatherSources(q.text, parsed, ask, search);
     onProgress(`${tag}: writing the answer…`);
-    const raw = await ask(writerPrompt(parsed, sources.length > 0), writerInput(parsed, q.text, q.number, sources));
-    const { text: answer, cited } = applyCitations(cleanAnswer(raw), sources, parsed.style);
+    const raw = await ask(writerPrompt(parsed, sources.length > 0), writerInput(parsed, q.text, q.number, sources), false, 'writing');
+    const { text: answer, cited, dropped } = applyCitations(cleanAnswer(raw), sources, parsed.style);
     cited.forEach((s) => used.set(s.id, s));
+    onProgress(`${tag}: reviewing…`);
+    for (const note of await reviewAnswer(answer, sources, cited, dropped, parsed, ask)) notes.push(`${labels.question} ${q.number}: ${note}`);
     if (!sources.length) unsupported.push(i + 1);
 
     body.push(para(`${labels.question} ${q.number}`, 'HEADING_2'));
@@ -94,12 +118,18 @@ export async function answerAssignment(file: string, deps: AssignmentDeps): Prom
     for (const s of refs) doc.push({ runs: formatReference(s, parsed.style), hanging: true });
   }
 
+  if (notes.length) {
+    doc.push(para(labels.review.title, 'HEADING_1'));
+    doc.push({ runs: [{ text: labels.review.intro, italic: true }] });
+    for (const n of notes) doc.push(para(`• ${n}`));
+  }
+
   onProgress('Creating your Google Doc…');
   const url = await createDoc(parsed.title, doc);
-  return { title: parsed.title, url, questionCount: parsed.questions.length, sourceCount: refs.length, unsupported, style: parsed.style };
+  return { title: parsed.title, url, questionCount: parsed.questions.length, sourceCount: refs.length, unsupported, style: parsed.style, reviewNotes: notes.length };
 }
 
-type Ask = (system: string, user: string, json?: boolean) => Promise<string>;
+type Ask = (system: string, user: string, json?: boolean, task?: ModelTask) => Promise<string>;
 
 export async function parseAssignment(text: string, fallbackTitle: string, ask: Ask): Promise<ParsedAssignment> {
   const raw = await ask(
@@ -184,17 +214,52 @@ export function cleanAnswer(raw: string): string {
  * Replaces model-written markers like [1] or [2][3] with author-date citations
  * built from real metadata. Markers that do not match a source are dropped.
  */
-export function applyCitations(text: string, sources: Source[], style: CitationStyle): { text: string; cited: Source[] } {
+export function applyCitations(text: string, sources: Source[], style: CitationStyle): { text: string; cited: Source[]; dropped: number } {
   const cited = new Map<string, Source>();
+  let dropped = 0;
   const out = text.replace(/(?:\[\d+(?:\s*[,;]\s*\d+)*\]\s*)+/g, (match) => {
     const picked: Source[] = [];
     for (const n of match.match(/\d+/g) ?? []) {
       const s = sources[Number(n) - 1];
       if (s && !picked.includes(s)) picked.push(s);
     }
-    if (!picked.length) return '';
+    if (!picked.length) { dropped++; return ''; }
     picked.forEach((s) => cited.set(s.id, s));
     return `${inTextCitation(picked, style)}${/\s$/.test(match) ? ' ' : ''}`;
   });
-  return { text: out.replace(/ +([.,;:])/g, '$1').replace(/[ \t]{2,}/g, ' '), cited: [...cited.values()] };
+  return { text: out.replace(/ +([.,;:])/g, '$1').replace(/[ \t]{2,}/g, ' '), cited: [...cited.values()], dropped };
+}
+
+const CITATION = /\([^()]*\d{4}\)/;
+
+/**
+ * Checks a finished answer and returns points for the student to verify: paragraphs
+ * without citations, unused sources, removed bogus markers, and (with the model)
+ * claims the retrieved abstracts do not seem to support. Never throws.
+ */
+export async function reviewAnswer(
+  answer: string, sources: Source[], cited: Source[], dropped: number, parsed: ParsedAssignment, ask: Ask,
+): Promise<string[]> {
+  if (!sources.length) return []; // already flagged as unsupported in the document
+  const r = LABELS[parsed.language].review;
+  const notes: string[] = [];
+  if (!cited.length) notes.push(r.noneCited(sources.length));
+  else {
+    answer.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean)
+      .forEach((p, i) => { if (!CITATION.test(p)) notes.push(r.noCitation(i + 1)); });
+  }
+  if (dropped) notes.push(r.dropped(dropped));
+
+  try {
+    const list = sources.map((s, i) => `[${i + 1}] ${s.title}. ${s.abstract.slice(0, 500)}`).join('\n');
+    const raw = await ask(
+      `You fact-check an answer against source abstracts. List up to 3 specific claims in the answer that the sources do NOT support (invented numbers, names or findings). Quote each claim in ${LANGUAGE_NAME[parsed.language]} in under 20 words. ` +
+      'Respond ONLY with JSON: {"unsupported":["claim", ...]}. Use an empty list when everything is supported.',
+      `Sources:\n${list}\n\nAnswer:\n${answer}`,
+      true,
+    );
+    const claims = (JSON.parse(raw).unsupported ?? []) as unknown[];
+    for (const c of claims.slice(0, 3)) if (typeof c === 'string' && c.trim()) notes.push(r.unsupported(c.trim()));
+  } catch { /* the automatic checks above still stand */ }
+  return notes;
 }

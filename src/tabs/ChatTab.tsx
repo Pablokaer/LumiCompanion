@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, type Dispatch, type FormEvent, type SetSta
 import type { ChatMessage, OllamaStatus } from '../../shared/types';
 import { api } from '../api';
 import type { ChatState } from '../App';
-import { AttachIcon, SendIcon } from '../components/Icons';
+import { AttachIcon, MicIcon, SendIcon } from '../components/Icons';
 import { Mascot } from '../components/Mascot';
+import { MAX_RECORDING_MS, micError, startRecording, type Recording } from '../voice';
 
 const SUGGESTIONS = [
   'What’s on my calendar today?',
@@ -33,6 +34,9 @@ export function ChatTab({ chat, setChat, name }: { chat: ChatState; setChat: Dis
   const [input, setInput] = useState('');
   const [ollama, setOllama] = useState<OllamaStatus>();
   const endRef = useRef<HTMLDivElement>(null);
+  const recording = useRef<Recording | undefined>(undefined);
+  const autoStop = useRef<number | undefined>(undefined);
+  const [voice, setVoice] = useState<'idle' | 'listening' | 'transcribing'>('idle');
   const busy = chat.status.state !== 'idle' || (chat.messages.length > 0 && chat.messages[chat.messages.length - 1].role === 'user' && !chat.error);
 
   useEffect(() => { api.agent.ollamaStatus().then(setOllama); }, []);
@@ -63,6 +67,7 @@ export function ChatTab({ chat, setChat, name }: { chat: ChatState; setChat: Dis
       const notes = [
         `${r.questionCount} question${r.questionCount === 1 ? '' : 's'} answered, ${r.sourceCount} real source${r.sourceCount === 1 ? '' : 's'} cited in ${r.style}.`,
         r.unsupported.length ? `No sources found for question ${r.unsupported.join(', ')}, so please check ${r.unsupported.length === 1 ? 'it' : 'those'} carefully.` : '',
+        r.reviewNotes ? `The review flagged ${r.reviewNotes} point${r.reviewNotes === 1 ? '' : 's'} to check — see “Review notes” at the end of the document.` : '',
         'Review the text before submitting — a small local model can still make mistakes.',
       ].filter(Boolean).join(' ');
       setChat((c) => ({ ...c, messages: [...c.messages, { role: 'assistant', content: `Your document is ready ✦
@@ -73,6 +78,39 @@ ${notes}` }] }));
       setChat((c) => ({ ...c, error: msg, status: { state: 'idle' } }));
     }
   };
+
+  const stopListening = async () => {
+    const rec = recording.current;
+    if (!rec) return;
+    recording.current = undefined;
+    window.clearTimeout(autoStop.current);
+    setVoice('transcribing');
+    try {
+      const samples = await rec.stop();
+      const text = samples.length > 8000 ? await api.voice.transcribe(samples) : '';
+      if (text) setInput((v) => (v.trim() ? `${v.trim()} ${text}` : text));
+      else setChat((c) => ({ ...c, error: 'I didn’t catch that — try speaking a little longer.' }));
+    } catch (e) {
+      setChat((c) => ({ ...c, error: micError(e), status: { state: 'idle' } }));
+    } finally {
+      setVoice('idle');
+    }
+  };
+
+  const toggleListening = async () => {
+    if (voice === 'listening') return stopListening();
+    if (voice !== 'idle' || busy) return;
+    setChat((c) => ({ ...c, error: undefined }));
+    try {
+      recording.current = await startRecording();
+      setVoice('listening');
+      autoStop.current = window.setTimeout(() => void stopListening(), MAX_RECORDING_MS);
+    } catch (e) {
+      setChat((c) => ({ ...c, error: micError(e) }));
+    }
+  };
+
+  useEffect(() => () => { window.clearTimeout(autoStop.current); void recording.current?.stop(); }, []);
 
   const answerConfirm = async (approved: boolean) => {
     if (!chat.confirm) return;
@@ -141,10 +179,11 @@ ${notes}` }] }));
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={`Message ${name}…`}
+          placeholder={voice === 'listening' ? 'Listening… click the mic when you are done' : voice === 'transcribing' ? 'Turning your voice into text…' : `Message ${name}…`}
           aria-label={`Message ${name}`}
-          disabled={!!chat.confirm}
+          disabled={!!chat.confirm || voice === 'transcribing'}
         />
+        <button type="button" className={`mic-btn${voice === 'listening' ? ' on' : ''}`} onClick={toggleListening} disabled={busy || voice === 'transcribing' || !!chat.confirm} aria-label={voice === 'listening' ? 'Stop recording' : 'Speak your message'} aria-pressed={voice === 'listening'} title={voice === 'listening' ? 'Stop recording' : 'Speak your message'}><MicIcon /></button>
         <button className="send-btn" disabled={!input.trim() || busy} aria-label="Send"><SendIcon /></button>
       </form>
     </div>

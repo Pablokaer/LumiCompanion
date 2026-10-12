@@ -1,5 +1,5 @@
 import type {
-  AuthState, CalendarEvent, ChatMessage, DataSnapshot, LumiApi, NewEventInput, ScoredEmail, Settings,
+  AuthState, CalendarEvent, ChatMessage, DataSnapshot, FocusState, LumiApi, NewEventInput, ScoredEmail, Settings,
 } from '../shared/types';
 
 declare global {
@@ -25,7 +25,7 @@ function createMockApi(): LumiApi {
   const params = new URLSearchParams(location.search);
   let auth: AuthState = { configured: true, signedIn: params.get('signedIn') !== '0', profile: { name: 'Pablo', email: 'pablo@example.com' } };
   let settings: Settings = {
-    mascotName: 'Lumi', widgetMode: 'desktop', widgetView: (params.get('view') as Settings['widgetView']) ?? 'mascot', launchAtLogin: true, reminderLeadMinutes: [15, 5], systemNotifications: true,
+    mascotName: 'Lumi', widgetMode: 'desktop', widgetView: (params.get('view') as Settings['widgetView']) ?? 'mascot', skin: 'classic', accessory: 'none', autoStartOllama: true, morningBriefing: true, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', modelChat: '', modelTriage: '', modelWriting: '', launchAtLogin: true, reminderLeadMinutes: [15, 5], systemNotifications: true,
     ollamaUrl: 'http://127.0.0.1:11434', ollamaModel: 'llama3.1:8b', aiEmailTriage: true, emailLookbackDays: 2,
   };
   const events: CalendarEvent[] = [
@@ -48,6 +48,7 @@ function createMockApi(): LumiApi {
     mk('4', 'GitHub', '[finperiti/core] PR #482 approved', 'Your pull request was approved by 2 reviewers.', 41, ['Automated update']),
     mk('5', 'Space Weekly', 'The 10 most beautiful nebulae', 'This week: Carina, Orion and a surprise…', 12, ['Newsletter', 'Promotion']),
   ];
+  let focusState: FocusState | undefined;
   let snapshot: DataSnapshot = { events, emails, lastSync: new Date().toISOString() };
 
   return {
@@ -96,6 +97,37 @@ function createMockApi(): LumiApi {
       respondConfirm: async () => undefined,
       ollamaStatus: async () => ({ running: true, models: ['llama3.1:8b', 'qwen2.5:7b'] }),
     },
+    focus: {
+      get: async () => focusState,
+      start: async (minutes) => { focusState = { endsAt: Date.now() + minutes * 60_000, minutes }; emit('focus:changed', focusState); return focusState; },
+      stop: async () => { focusState = undefined; emit('focus:changed', undefined); },
+    },
+    briefing: {
+      show: async () => {
+        emit('briefing', {
+          title: 'Good morning, Pablo! Here is your day',
+          lines: ['3 events today:', '• 09:30 — Dentist', '• 13:00 — Lunch with Marina', '• 16:30 — Product review', '2 important emails:', '• Ana Ribeiro: Contract needs your signature today', '• Finance Team: Invoice #2291 overdue'],
+        });
+      },
+    },
+    mail: {
+      draftReply: async (emailId, instructions) => {
+        await wait(900);
+        const e = emails.find((m) => m.id === emailId);
+        return { threadId: emailId, to: e?.fromEmail ?? 'ana@example.com', subject: `Re: ${e?.subject ?? ''}`, body: `Hi ${e?.from.split(' ')[0] ?? ''},\n\n${instructions || 'Thanks for your message — I will get back to you shortly.'}\n\nBest,\nPablo` };
+      },
+      saveDraft: async () => { await wait(500); return { url: 'https://mail.google.com/mail/u/0/#drafts' }; },
+      suggestEvent: async (emailId) => {
+        await wait(900);
+        if (emailId !== '3') return undefined;
+        const d = new Date(); d.setDate(d.getDate() + ((2 - d.getDay() + 7) % 7 || 7));
+        const pad = (n: number) => String(n).padStart(2, '0');
+        return { title: 'Second-round interview', start: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T10:00`, durationMinutes: 60 };
+      },
+    },
+    voice: {
+      transcribe: async () => { await wait(800); return 'Schedule a call with Ana tomorrow at 15:00'; },
+    },
     docs: {
       pickFile: async () => ({ path: 'C:\\sample\\questions.docx', name: 'questions.docx' }),
       answerFile: async () => {
@@ -104,7 +136,7 @@ function createMockApi(): LumiApi {
           await wait(700);
         }
         emit('agent:status', { state: 'idle' });
-        return { title: 'Sample answers', url: 'https://docs.google.com/document/d/sample/edit', questionCount: 2, sourceCount: 4, unsupported: [], style: 'APA' as const };
+        return { title: 'Sample answers', url: 'https://docs.google.com/document/d/sample/edit', questionCount: 2, sourceCount: 4, unsupported: [], style: 'APA' as const, reviewNotes: 2 };
       },
     },
     settings: {
