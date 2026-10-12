@@ -23,6 +23,9 @@ concurrency:
 env:
   # How many releases to keep (older ones are deleted after publishing, installers are large).
   KEEP_RELEASES: 5
+  # Lumi runs speech recognition on the CPU: skip onnxruntime's optional GPU (CUDA) downloads. They are
+  # hundreds of MB, made `npm ci` time out, and bloated the Linux installers.
+  ONNXRUNTIME_NODE_INSTALL: skip
 
 jobs:
   check:
