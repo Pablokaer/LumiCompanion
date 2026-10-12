@@ -25,7 +25,7 @@ function createMockApi(): LumiApi {
   const params = new URLSearchParams(location.search);
   let auth: AuthState = { configured: true, signedIn: params.get('signedIn') !== '0', profile: { name: 'Pablo', email: 'pablo@example.com' } };
   let settings: Settings = {
-    mascotName: 'Lumi', widgetMode: 'desktop', widgetView: (params.get('view') as Settings['widgetView']) ?? 'mascot', skin: 'classic', shape: (params.get('shape') as Settings['shape']) ?? 'star', accessories: (params.get('acc')?.split(',').filter(Boolean) ?? []) as Settings['accessories'], mascotLife: true, sleepAfterMinutes: 3, reactToMusic: true, autoStartOllama: true, morningBriefing: true, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', modelChat: '', modelTriage: '', modelWriting: '', launchAtLogin: true, reminderLeadMinutes: [15, 5], systemNotifications: true,
+    mascotName: 'Lumi', widgetMode: 'desktop', widgetView: (params.get('view') as Settings['widgetView']) ?? 'mascot', skin: ((params.get('skin') as Settings['skin']) ?? 'classic'), customColor: '#' + (params.get('color') ?? 'ff6fae'), colorSwatches: ['#ff6fae', '#34d399', '#f59e0b'], shape: (params.get('shape') as Settings['shape']) ?? 'star', accessories: (params.get('acc')?.split(',').filter(Boolean) ?? []) as Settings['accessories'], mascotLife: true, sleepAfterMinutes: 3, reactToMusic: true, autoStartOllama: true, morningBriefing: true, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', modelChat: '', modelTriage: '', modelWriting: '', launchAtLogin: true, reminderLeadMinutes: [15, 5], systemNotifications: true,
     ollamaUrl: 'http://127.0.0.1:11434', ollamaModel: 'llama3.1:8b', aiEmailTriage: true, emailLookbackDays: 2,
   };
   const events: CalendarEvent[] = [

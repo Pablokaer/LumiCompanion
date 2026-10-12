@@ -1,3 +1,4 @@
+import { normalizeHex, normalizeSwatches } from './color';
 import type { Accessory, AccessorySlot, Shape } from './types';
 
 /**
@@ -49,5 +50,10 @@ export function migrateAppearance<T extends Record<string, unknown>>(raw: T): Om
   if (out.accessories === undefined && isAccessory(accessory)) out.accessories = [accessory];
   if ('accessories' in out) out.accessories = normalizeAccessories(out.accessories);
   if ('shape' in out && !isShape(out.shape)) delete out.shape;
+  if ('customColor' in out) {
+    const hex = normalizeHex(out.customColor);
+    if (hex) out.customColor = hex; else delete out.customColor;
+  }
+  if ('colorSwatches' in out) out.colorSwatches = normalizeSwatches(out.colorSwatches);
   return out as Omit<T, 'accessory'>;
 }

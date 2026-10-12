@@ -61,4 +61,11 @@ describe('settings migration', () => {
     expect(migrateAppearance({ shape: 'cube' })).toEqual({});
     expect(migrateAppearance({ shape: 'moon', accessories: ['x', 'bow'] })).toEqual({ shape: 'moon', accessories: ['bow'] });
   });
+
+  it('validates the custom colour and saved swatches', () => {
+    expect(migrateAppearance({ customColor: '#ABC' })).toEqual({ customColor: '#aabbcc' });
+    expect(migrateAppearance({ customColor: 'red' })).toEqual({});
+    expect(migrateAppearance({ colorSwatches: ['#FFF', 'nope', '#ffffff', '#123456'] })).toEqual({ colorSwatches: ['#ffffff', '#123456'] });
+    expect(migrateAppearance({ colorSwatches: 'x' })).toEqual({ colorSwatches: [] });
+  });
 });

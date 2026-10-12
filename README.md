@@ -21,7 +21,7 @@ Lumi is a little blue star that lives on your Windows or Mac desktop. It watches
 - **Email → event:** "Make event" looks for a meeting or deadline in an email and opens a prefilled form. You confirm before anything is created.
 - **Add events from the calendar:** select a day (or double-click it) and use "Add event".
 - **Voice input:** click the microphone in Chat and speak. Transcription runs locally with Whisper (see below).
-- **Shapes, skins and accessories:** pick her body from four star shapes (star, chubby, sparkle, six-point) or space objects (ringed planet, Earth, Moon, Sun, comet), five colour skins (they re-theme the whole app), and mix and match 17 accessories by spot: **head** (party hat, crown, wizard hat, top hat, halo, flower, cat ears, antenna, bow, space helmet), **ears** (headphones), **eyes** (glasses, sunglasses, monocle), **neck** (scarf, bow tie) and **face** (mustache). One accessory per spot, different spots combine. Settings → Appearance has a live preview.
+- **Shapes, skins and accessories:** pick her body from four star shapes (star, chubby, sparkle, six-point) or space objects (ringed planet, Earth, Moon, Sun, comet), five colour presets or **any colour you like** with a Photoshop-style picker (they re-theme the whole app), and mix and match 17 accessories by spot: **head** (party hat, crown, wizard hat, top hat, halo, flower, cat ears, antenna, bow, space helmet), **ears** (headphones), **eyes** (glasses, sunglasses, monocle), **neck** (scarf, bow tie) and **face** (mustache). One accessory per spot, different spots combine. Settings → Appearance has a live preview.
 - **Models per task:** use a small model for email triage and a larger one for writing. Settings → Local AI.
 - **Ollama starts itself:** if it is installed but stopped, Lumi launches it (can be turned off).
 - **Answer assignments into a Google Doc:** attach a `.docx`, `.pdf`, `.txt` or `.md` file of questions in Chat. Lumi finds the questions, researches real sources, writes academic answers and saves them as a Google Doc with in-text citations and a reference list in ABNT or APA (see below).
@@ -84,7 +84,19 @@ If Ollama is off, Calendar, Gmail, reminders and the heuristic email ranking sti
 - **Platform notes:** works on Windows out of the box. macOS 13+ may ask for Screen Recording permission (Electron's system-audio capture requires it) and Linux needs PulseAudio/PipeWire. If capture is not possible the status in Settings says so and everything else keeps working.
 - With "reduce motion" enabled in the OS, the spontaneous actions and dance are skipped.
 
-Browser preview (`npm run preview:ui`) extras: `?gallery=1` shows every shape and accessory (add `&skin=sunset` or `&mood=happy`), `?shape=planet&acc=wizard,sunglasses` previews a look, and for inspecting the animations: `?sleep=1` (start asleep), `?music=1` (fake 120 BPM music) and `?action=wave` (pin one action: `smile`, `hop`, `look`, `wave`, `spin`, `wiggle`, `stretch`, `twinkle`, `hum`, `peek`, `cheer`, `wake`).
+Browser preview (`npm run preview:ui`) extras: `?gallery=1` shows every shape and accessory (add `&skin=sunset` or `&mood=happy`), `?shape=planet&acc=wizard,sunglasses` previews a look, `?skin=custom&color=22c55e` a custom colour, and for inspecting the animations: `?sleep=1` (start asleep), `?music=1` (fake 120 BPM music) and `?action=wave` (pin one action: `smile`, `hop`, `look`, `wave`, `spin`, `wiggle`, `stretch`, `twinkle`, `hum`, `peek`, `cheer`, `wake`).
+
+## Custom colour
+
+Settings → Appearance → Colour → **Custom** opens a Photoshop-style picker that covers the whole RGB range:
+
+- a saturation/brightness square and a hue strip (drag with the mouse, or use the arrow keys when focused; hold Shift for bigger steps);
+- **R, G, B** number fields and a **hex** field (accepts `#abc`, `abc` or `#aabbcc`; an invalid value reverts);
+- a **New / Current** swatch (click "Current" to go back);
+- **Pick from screen**, an eyedropper that samples any pixel on your display (where the OS supports it);
+- **saved colours**: "Save colour" keeps up to 12; click one to use it, right-click or the small × to remove it.
+
+The colour is previewed live everywhere while you drag and saved when you let go. From the one colour Lumi builds a full gradient for her body and derives the app's accent colours, kept light enough to read on the dark background and dark enough behind white button text, so even black or white choices stay usable.
 
 ## Voice input
 
@@ -190,11 +202,12 @@ electron/              Main process (Node)
   services/            sync.ts (polling), reminders.ts, emailScoring.ts, time.ts, briefing.ts, focus.ts
 shared/types.ts        Types shared by main + renderer
 shared/appearance.ts   Shape and accessory tables, slot rules and settings migration
+shared/color.ts        Colour maths (hex/RGB/HSV/HSL), skin derivation and saved-swatch helpers
 src/                   React renderer (space UI)
   components/          Mascot (SVG star), shapes (body shapes), gear (accessories), Starfield (canvas), CompactView, CalendarWidget, MonthCalendar, DayAgenda, QuickAdd, FocusCard, BriefingCard, Panel, LoginScreen
   tabs/                Today, Calendar, Inbox, Chat, Settings
   calendar.ts          Pure date helpers (month grid, events by day)
-  appearance.tsx       Skins, shape and accessory catalogue, and the theme context
+  appearance.tsx       Skins (presets and custom), shape and accessory catalogue, and the theme context
   Gallery.tsx          Browser-preview gallery of every shape and accessory (`?gallery=1`)
   behavior.ts          Pure logic for the star's spontaneous actions
   dance.ts             Pure choreography: pose for a position in the beat
@@ -203,7 +216,7 @@ src/                   React renderer (space UI)
   music/               beat.ts (tempo + beat detection), listener.ts (system-audio capture and analysis)
   voice.ts             Microphone recording (16 kHz mono) for voice input
   api.ts               window.lumi + a mock for browser preview
-tests/                 Unit tests (core, docs, calendar, features, music, life, motion, appearance)
+tests/                 Unit tests (core, docs, calendar, features, music, life, motion, appearance, color)
 scripts/oauth-json.mjs Builds google-oauth.json from .env or environment variables for installers
 .github/workflows/     CI (ci.yml) and release builds (release.yml)
 ```

@@ -15,7 +15,7 @@ export function Gallery() {
 
   const cell = (key: string, label: string, shape: Shape, worn: Accessory[]) => (
     <figure key={key} className="gallery-cell">
-      <AppearanceProvider value={{ skin, shape, accessories: worn }}>
+      <AppearanceProvider value={{ skin, customColor: params.get('color') ? `#${params.get('color')}` : '#ff6fae', shape, accessories: worn }}>
         <Mascot size={110} mood={mood} />
       </AppearanceProvider>
       <figcaption>{label}</figcaption>
@@ -23,7 +23,7 @@ export function Gallery() {
   );
 
   return (
-    <div className="gallery" style={skinVars(skin)}>
+    <div className="gallery" style={skinVars(skin, params.get('color') ? `#${params.get('color')}` : '#ff6fae')}>
       <h2>Shapes</h2>
       <div className="gallery-grid">{SHAPES.map((s) => cell(s, SHAPE_INFO[s].label, s, []))}</div>
       <h2>Accessories</h2>

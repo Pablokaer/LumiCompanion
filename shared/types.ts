@@ -63,7 +63,7 @@ export interface ScoredEmail extends EmailSummary {
 
 export type WidgetMode = 'desktop' | 'onTop';
 
-export type Skin = 'classic' | 'nebula' | 'sunset' | 'mint' | 'mono';
+export type Skin = 'classic' | 'nebula' | 'sunset' | 'mint' | 'mono' | 'custom';
 export type Shape = 'star' | 'chubby' | 'sparkle' | 'hexa' | 'planet' | 'earth' | 'moon' | 'sun' | 'comet';
 export type AccessorySlot = 'head' | 'ears' | 'eyes' | 'neck' | 'face';
 export type Accessory =
@@ -81,6 +81,10 @@ export interface Settings {
   widgetMode: WidgetMode;
   widgetView: WidgetView;
   skin: Skin;
+  /** The colour used when `skin` is 'custom', as "#rrggbb". */
+  customColor: string;
+  /** Saved colours (newest first) shown under the colour picker. */
+  colorSwatches: string[];
   /** The body: a star variant or a space object. */
   shape: Shape;
   /** What she is wearing: at most one accessory per slot (head, ears, eyes, neck, face). */

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { ACCESSORY_SLOTS, SLOT_ORDER, toggleAccessory } from '../../shared/appearance';
-import type { Accessory, AuthState, OllamaStatus, Settings, Shape, Skin, WidgetView } from '../../shared/types';
+import type { Accessory, AuthState, OllamaStatus, Settings, Shape, WidgetView } from '../../shared/types';
 import { api } from '../api';
-import { ACCESSORY_LABEL, SHAPE_INFO, SKINS, SLOT_LABEL } from '../appearance';
+import { addSwatch, removeSwatch } from '../../shared/color';
+import { ACCESSORY_LABEL, SHAPE_INFO, SKINS, SLOT_LABEL, type PresetSkin } from '../appearance';
+import { ColorPicker } from '../components/ColorPicker';
 import { Mascot } from '../components/Mascot';
 import { useLife } from '../mascotLife';
 
@@ -20,8 +22,8 @@ const VIEW_OPTIONS: { id: WidgetView; label: string; hint: string }[] = [
   { id: 'day', label: 'Day', hint: 'A daily agenda you can step through day by day.' },
 ];
 
-export function SettingsTab({ settings, onSettings, auth, onSignedOut }: {
-  settings: Settings; onSettings(s: Settings): void; auth: AuthState; onSignedOut(a: AuthState): void;
+export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedOut }: {
+  settings: Settings; onSettings(s: Settings): void; onLiveColor(hex?: string): void; auth: AuthState; onSignedOut(a: AuthState): void;
 }) {
   const [ollama, setOllama] = useState<OllamaStatus>();
   const life = useLife();
@@ -29,6 +31,11 @@ export function SettingsTab({ settings, onSettings, auth, onSignedOut }: {
   const [mascotName, setMascotName] = useState(settings.mascotName);
 
   const update = async (patch: Partial<Settings>) => onSettings(await api.settings.update(patch));
+  /** Saves a picked colour and stops previewing it. */
+  const saveColor = async (hex: string) => {
+    if (hex !== settings.customColor || settings.skin !== 'custom') await update({ customColor: hex, skin: 'custom' });
+    onLiveColor(undefined);
+  };
   const checkOllama = () => api.agent.ollamaStatus().then(setOllama);
   useEffect(() => { void checkOllama(); }, [settings.ollamaUrl]);
 
@@ -65,14 +72,27 @@ export function SettingsTab({ settings, onSettings, auth, onSignedOut }: {
         <h3>Appearance</h3>
         <div className="appearance-preview"><Mascot size={104} title="Preview" /></div>
         <div className="field">
-          <span>Star colour</span>
-          <div className="chips" role="radiogroup" aria-label="Star colour">
-            {(Object.keys(SKINS) as Skin[]).map((id) => (
-              <button key={id} role="radio" aria-checked={settings.skin === id} className={`chip skin${settings.skin === id ? ' on' : ''}`} onClick={() => update({ skin: id })}>
+          <span>Colour</span>
+          <div className="chips" role="radiogroup" aria-label="Colour">
+            {(Object.keys(SKINS) as PresetSkin[]).map((id) => (
+              <button key={id} role="radio" aria-checked={settings.skin === id} className={`chip skin${settings.skin === id ? ' on' : ''}`} onClick={() => { onLiveColor(undefined); void update({ skin: id }); }}>
                 <i className="swatch" style={{ background: `linear-gradient(135deg, ${SKINS[id].stops[1]}, ${SKINS[id].stops[3]})` }} />{SKINS[id].label}
               </button>
             ))}
+            <button role="radio" aria-checked={settings.skin === 'custom'} className={`chip skin${settings.skin === 'custom' ? ' on' : ''}`} onClick={() => void update({ skin: 'custom' })}>
+              <i className="swatch rainbow" style={settings.skin === 'custom' ? { background: settings.customColor } : undefined} />Custom
+            </button>
           </div>
+          {settings.skin === 'custom' && (
+            <ColorPicker
+              value={settings.customColor}
+              swatches={settings.colorSwatches}
+              onLive={onLiveColor}
+              onCommit={(hex) => void saveColor(hex)}
+              onSaveSwatch={(hex) => void update({ colorSwatches: addSwatch(settings.colorSwatches, hex) })}
+              onRemoveSwatch={(hex) => void update({ colorSwatches: removeSwatch(settings.colorSwatches, hex) })}
+            />
+          )}
         </div>
         <div className="field">
           <span>Shape</span>

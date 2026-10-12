@@ -9,6 +9,8 @@ export const DEFAULT_SETTINGS: Settings = {
   widgetMode: 'desktop',
   widgetView: 'mascot',
   skin: 'classic',
+  customColor: '#ff6fae',
+  colorSwatches: [],
   shape: 'star',
   accessories: [],
   mascotLife: true,

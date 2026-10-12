@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { SHAPE_INFO, SKINS, useAppearance } from '../appearance';
+import { resolveSkin, SHAPE_INFO, useAppearance } from '../appearance';
 import type { MascotAction } from '../behavior';
 import { dancePose, type DancePose } from '../dance';
 import { prefersReducedMotion, useLife } from '../mascotLife';
@@ -31,11 +31,11 @@ const MOOD_MOTION: Record<Mood, BaseMotion> = {
 /** Lumi, the little blue star. She sleeps when you are away, dances to music and keeps herself busy. */
 export function Mascot({ mood = 'idle', size = 140, onClick, title }: Props) {
   const id = useMemo(() => Math.random().toString(36).slice(2, 8), []);
-  const { skin, shape, accessories } = useAppearance();
+  const { skin, customColor, shape, accessories } = useAppearance();
   const info = SHAPE_INFO[shape] ?? SHAPE_INFO.star;
   const life = useLife();
   const reduced = useMemo(prefersReducedMotion, []);
-  const stops = (SKINS[skin] ?? SKINS.classic).stops;
+  const stops = resolveSkin(skin, customColor).stops;
   const fill = `url(#body-${id})`;
   const shapeProps = { shape, fill, uid: id, stops };
 

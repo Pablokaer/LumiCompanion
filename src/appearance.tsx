@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import { deriveSkin } from '../shared/color';
 import type { Accessory, AccessorySlot, Shape, Skin } from '../shared/types';
 
 export interface SkinDef {
@@ -10,7 +11,9 @@ export interface SkinDef {
   starStrong: string;
 }
 
-export const SKINS: Record<Skin, SkinDef> = {
+export type PresetSkin = Exclude<Skin, 'custom'>;
+
+export const SKINS: Record<PresetSkin, SkinDef> = {
   classic: { label: 'Classic', stops: ['#bfe6ff', '#5cb8ff', '#2f7bff', '#1e4fd8'], star: '#5cb8ff', starStrong: '#2f7bff' },
   nebula: { label: 'Nebula', stops: ['#eadcff', '#b388ff', '#7c4dff', '#4527a0'], star: '#b388ff', starStrong: '#7c4dff' },
   sunset: { label: 'Sunset', stops: ['#ffe5c7', '#ffb547', '#ff7a3d', '#d6336c'], star: '#ffb547', starStrong: '#ff7a3d' },
@@ -51,15 +54,21 @@ export const ACCESSORY_LABEL: Record<Accessory, string> = {
   mustache: 'Mustache',
 };
 
-export interface Appearance { skin: Skin; shape: Shape; accessories: Accessory[] }
+export interface Appearance { skin: Skin; customColor: string; shape: Shape; accessories: Accessory[] }
 
-const AppearanceContext = createContext<Appearance>({ skin: 'classic', shape: 'star', accessories: [] });
+const AppearanceContext = createContext<Appearance>({ skin: 'classic', customColor: '#ff6fae', shape: 'star', accessories: [] });
+
+/** The colours for a skin: a preset, or one derived from the user's own colour. */
+export function resolveSkin(skin: Skin, customColor: string): SkinDef {
+  if (skin === 'custom') return { label: 'Custom', ...deriveSkin(customColor) };
+  return SKINS[skin] ?? SKINS.classic;
+}
 
 export const AppearanceProvider = AppearanceContext.Provider;
 export const useAppearance = () => useContext(AppearanceContext);
 
 /** CSS variables that re-theme the UI for a skin. */
-export function skinVars(skin: Skin): Record<string, string> {
-  const s = SKINS[skin] ?? SKINS.classic;
+export function skinVars(skin: Skin, customColor = '#ff6fae'): Record<string, string> {
+  const s = resolveSkin(skin, customColor);
   return { '--star': s.star, '--star-strong': s.starStrong, '--mascot-halo': s.star };
 }

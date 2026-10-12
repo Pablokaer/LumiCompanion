@@ -34,6 +34,8 @@ export default function App() {
   const [focus, setFocus] = useState<FocusState>();
   const [briefing, setBriefing] = useState<Briefing>();
   const [idleSeconds, setIdleSeconds] = useState(0);
+  // The colour being dragged in the picker: previewed everywhere without saving on every mouse move.
+  const [liveColor, setLiveColor] = useState<string>();
   const reminderTimer = useRef<number | undefined>(undefined);
 
   // ---- bootstrapping & subscriptions ----
@@ -125,13 +127,15 @@ export default function App() {
 
   if (!auth || !settings) return <div className="shell loading"><Starfield /></div>;
 
-  const appearance = { skin: settings.skin, shape: settings.shape, accessories: settings.accessories };
+  const shownSkin = liveColor ? 'custom' : settings.skin;
+  const shownColor = liveColor ?? settings.customColor;
+  const appearance = { skin: shownSkin, customColor: shownColor, shape: settings.shape, accessories: settings.accessories };
 
   if (!auth.signedIn) {
     return (
       <AppearanceProvider value={appearance}>
         <LifeProvider value={life}>
-          <div className="shell expanded" style={skinVars(settings.skin)}>
+          <div className="shell expanded" style={skinVars(shownSkin, shownColor)}>
             <Starfield />
             <LoginScreen auth={auth} mascotName={name} onSignedIn={setAuth} />
           </div>
@@ -143,7 +147,7 @@ export default function App() {
   return (
     <AppearanceProvider value={appearance}>
     <LifeProvider value={life}>
-    <div className={`shell ${mode}${reminder ? ' has-reminder' : ''}`} style={skinVars(settings.skin)}>
+    <div className={`shell ${mode}${reminder ? ' has-reminder' : ''}`} style={skinVars(shownSkin, shownColor)}>
       {mode === 'expanded' && <Starfield />}
       {mode === 'compact' && settings.widgetView !== 'mascot' ? (
         <CalendarWidget
@@ -188,6 +192,7 @@ export default function App() {
           setChat={setChat}
           onCollapse={() => changeMode('compact')}
           onData={setData}
+          onLiveColor={setLiveColor}
           focus={focus}
           briefing={briefing}
           onDismissBriefing={() => setBriefing(undefined)}

@@ -31,6 +31,8 @@ interface Props {
   setChat: Dispatch<SetStateAction<ChatState>>;
   onCollapse(): void;
   onData(d: DataSnapshot): void;
+  /** Previews a colour (or clears the preview) while it is being picked. */
+  onLiveColor(hex?: string): void;
   focus?: FocusState;
   briefing?: Briefing;
   onDismissBriefing(): void;
@@ -85,7 +87,7 @@ export function Panel(p: Props) {
         {p.tab === 'calendar' && <CalendarTab data={p.data} now={p.now} />}
         {p.tab === 'inbox' && <InboxTab emails={p.data.emails} now={p.now} />}
         {p.tab === 'chat' && <ChatTab chat={p.chat} setChat={p.setChat} name={p.name} />}
-        {p.tab === 'settings' && <SettingsTab settings={p.settings} onSettings={p.onSettings} auth={p.auth} onSignedOut={p.onSignedOut} />}
+        {p.tab === 'settings' && <SettingsTab settings={p.settings} onSettings={p.onSettings} onLiveColor={p.onLiveColor} auth={p.auth} onSignedOut={p.onSignedOut} />}
       </main>
 
       <nav className="tabbar" aria-label="Sections">
