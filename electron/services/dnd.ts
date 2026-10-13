@@ -1,62 +1,43 @@
-import { spawn, type ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { computeDnd, isBusyNotificationState, meetingNow, type DndState } from '../../shared/dnd';
 import type { CalendarEvent, Settings } from '../../shared/types';
 
 /**
  * Windows reports whether a full-screen app, a presentation or Focus Assist is on through
- * SHQueryUserNotificationState. A single long-lived PowerShell process polls it every few seconds and
- * prints the value only when it changes, which is far cheaper than starting PowerShell for every check.
+ * SHQueryUserNotificationState. It is called in-process (koffi) every few seconds: no helper process,
+ * so nothing ever flashes a console window.
  */
-export const PROBE_SCRIPT = `
-Add-Type -Namespace Lumi -Name Q -MemberDefinition '[DllImport("shell32.dll")] public static extern int SHQueryUserNotificationState(out int state);'
-$last = -1
-while ($true) {
-  $s = 0
-  [void][Lumi.Q]::SHQueryUserNotificationState([ref]$s)
-  if ($s -ne $last) { [Console]::Out.WriteLine($s); [Console]::Out.Flush(); $last = $s }
-  Start-Sleep -Seconds 3
+export function queryNotificationState(): number | undefined {
+  if (process.platform !== 'win32') return undefined;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const koffi = require('koffi');
+    const fn = (queryNotificationState as any).fn ??= koffi.load('shell32.dll').func('int __stdcall SHQueryUserNotificationState(_Out_ int *state)');
+    const out = [0];
+    return fn(out) === 0 ? out[0] : undefined;
+  } catch {
+    return undefined;
+  }
 }
-`;
 
 export class FullscreenProbe extends EventEmitter {
   /** True while a full-screen app, presentation or Focus Assist is active. */
   busy = false;
-  private child?: ChildProcess;
-  private buffer = '';
-  private restarts = 0;
-  private stopped = true;
+  private timer?: NodeJS.Timeout;
 
   start() {
-    if (process.platform !== 'win32' || this.child) return;
-    this.stopped = false;
-    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', PROBE_SCRIPT], {
-      windowsHide: true,
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-    this.child = child;
-    child.stdout?.on('data', (chunk: Buffer) => {
-      this.buffer += chunk.toString('utf8');
-      let nl: number;
-      while ((nl = this.buffer.indexOf('\n')) >= 0) {
-        const line = this.buffer.slice(0, nl).trim();
-        this.buffer = this.buffer.slice(nl + 1);
-        if (/^\d+$/.test(line)) this.set(isBusyNotificationState(Number(line)));
-      }
-    });
-    child.once('exit', () => {
-      this.child = undefined;
-      this.set(false);
-      // If it dies on its own (not because we stopped it), try again a few times.
-      if (!this.stopped && this.restarts++ < 3) setTimeout(() => this.start(), 30_000);
-    });
-    child.once('error', () => { this.child = undefined; });
+    if (process.platform !== 'win32' || this.timer) return;
+    const poll = () => {
+      const state = queryNotificationState();
+      if (state !== undefined) this.set(isBusyNotificationState(state));
+    };
+    poll();
+    this.timer = setInterval(poll, 3000);
   }
 
   stop() {
-    this.stopped = true;
-    this.child?.kill();
-    this.child = undefined;
+    if (this.timer) clearInterval(this.timer);
+    this.timer = undefined;
     this.set(false);
   }
 

@@ -26,6 +26,7 @@ asarUnpack:
   - node_modules/onnxruntime-node/**
   - node_modules/sharp/**
   - node_modules/@img/**
+  - node_modules/koffi/**
 extraResources:
   # Your Google OAuth "Desktop app" client JSON (git-ignored). Run `npm run oauth:json` to create it from .env.
   - from: google-oauth.json

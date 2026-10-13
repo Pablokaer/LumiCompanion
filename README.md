@@ -149,7 +149,7 @@ Limitations: a small local model can still write weak or wrong prose, and OpenAl
 ### Do not disturb
 Lumi goes quiet by itself, and you can ask her to. While quiet she shows no reminder pop-ups, no notifications, no tips and no dancing or random actions; her speech bubble just says "Quiet mode". Reminders that come due are **held and shown as one "While you were busy" summary** when the quiet ends.
 
-- **Full-screen apps** (games, videos, presentations): detected on **Windows only**, through the system's "user notification state". Optionally the widget also hides itself while a full-screen app is open. On macOS and Linux this detection is not available, so use the manual pause or meetings.
+- **Full-screen apps** (games, videos, presentations): detected on **Windows only**, through the system's "user notification state". Optionally the widget also hides itself while a full-screen app is open. On macOS and Linux this detection is not available, so use the manual pause or meetings. It calls the Windows API in-process through `koffi`, so Lumi never starts PowerShell or any console window.
 - **Meetings:** quiet while a calendar event with a start time is running (off by default).
 - **Manual pause:** tray menu → "Do not disturb" (1 hour, until tomorrow morning, or off), or Settings → Do not disturb.
 
@@ -266,7 +266,7 @@ electron/              Main process (Node)
   voice/               transcribe.ts (local Whisper speech-to-text)
   updater.ts           Update service: electron-updater for Windows/AppImage, macUpdate.ts for macOS, release-page check elsewhere
   macUpdate.ts         macOS self-update: feed parsing, verified download, in-place swap script
-  services/            sync.ts (polling), reminders.ts, emailScoring.ts, time.ts, briefing.ts, focus.ts, dnd.ts (do-not-disturb + Windows full-screen probe), weather.ts (Open-Meteo + location)
+  services/            sync.ts (polling), reminders.ts, emailScoring.ts, time.ts, briefing.ts, focus.ts, dnd.ts (do-not-disturb + Windows full-screen probe via koffi), weather.ts (Open-Meteo + location)
   quickCapture.ts      Global shortcut and the small quick-capture window
 shared/types.ts        Types shared by main + renderer
 shared/appearance.ts   Shape and accessory tables, slot rules and settings migration
