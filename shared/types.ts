@@ -302,6 +302,8 @@ export interface LumiApi {
     getState(): Promise<UpdateState>;
     /** Checks now. */
     check(): Promise<UpdateState>;
+    /** Downloads the new version inside the app and restarts into it when it is ready. */
+    download(): Promise<UpdateState>;
     /** Restarts into a downloaded update. */
     install(): Promise<void>;
     /** Opens the download page (for platforms that cannot update themselves). */

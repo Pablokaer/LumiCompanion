@@ -104,12 +104,17 @@ function createMockApi(): LumiApi {
       const forced = params.get('update');
       let state: UpdateState = { status: 'idle', currentVersion: '0.1.5', notifyOnly: params.get('notify') === '1' };
       if (forced === 'ready') state = { ...state, status: 'ready', version: '0.1.9', percent: 100 };
-      if (forced === 'available') state = { ...state, status: 'available', version: '0.1.9', notifyOnly: true };
+      if (forced === 'available') state = { ...state, status: 'available', version: '0.1.9' };
       if (forced === 'downloading') state = { ...state, status: 'downloading', version: '0.1.9', percent: 42 };
       if (forced === 'error') state = { ...state, status: 'error', message: 'Could not reach the update server. Check your internet connection.' };
       return {
         getState: async () => state,
         check: async () => { state = { ...state, status: 'checking' }; emit('update:state', state); await wait(900); state = { ...state, status: 'none' }; emit('update:state', state); return state; },
+        download: async () => {
+          for (const percent of [5, 30, 60, 90, 100]) { state = { ...state, status: 'downloading', version: '0.1.9', percent }; emit('update:state', state); await wait(500); }
+          state = { ...state, status: 'ready', percent: 100 }; emit('update:state', state);
+          return state;
+        },
         install: async () => undefined,
         openDownload: async () => { window.open('https://github.com/Pablokaer/LumiCompanion/releases/latest', '_blank'); },
       };

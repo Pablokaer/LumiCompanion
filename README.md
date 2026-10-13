@@ -235,9 +235,9 @@ Installed copies of Lumi look for new versions on their own: shortly after start
 
 | Install | What happens |
 |---|---|
-| **Windows** | The new installer downloads in the background, its SHA-512 is checked against `latest.yml`, and it installs when you click "Restart to update" (or the next time you quit Lumi). |
+| **Windows** | When a new version is found, a banner (and Settings → Updates) offers **Update now**. Clicking it downloads the new version inside the app, with a progress bar (no browser, no installer to run), checks its SHA-512 against `latest.yml`, and restarts Lumi into the new version when it is ready. |
 | **Linux AppImage** | Same as Windows. |
-| **macOS** | Lumi downloads the release `.zip` for your chip (Apple Silicon or Intel) in the background, checks its SHA-512 against `latest-mac.yml`, and when you click "Restart to update" (or quit Lumi) a small script swaps the app in place, signs it ad hoc and opens it again. This works without an Apple Developer ID because the app does it itself instead of using Squirrel.Mac. It needs Lumi to be in a folder you can write to (such as `/Applications` as an admin user); otherwise Lumi just tells you a newer version exists and opens the download page. |
+| **macOS** | **Update now** downloads the release `.zip` for your chip (Apple Silicon or Intel) inside the app, checks its SHA-512 against `latest-mac.yml`, and then Lumi restarts: a small script swaps the app in place, signs it ad hoc and opens it again. This works without an Apple Developer ID because the app does it itself instead of using Squirrel.Mac. It needs Lumi to be in a folder you can write to (such as `/Applications` as an admin user); otherwise Lumi just tells you a newer version exists and opens the download page. |
 | **Linux .deb** | Lumi tells you a newer version exists and opens the download page (the .deb format does not support self-updating). |
 
 A banner and a notification appear when an update is ready. A download whose checksum does not match is discarded. Updates are fetched over HTTPS from this repository's GitHub releases, so without code signing you are trusting that repository.

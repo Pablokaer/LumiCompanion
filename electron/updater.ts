@@ -75,6 +75,10 @@ export class UpdateService extends EventEmitter {
   private checking = false;
   private macUpdate?: { app: string; staged: string; stage: string };
   private macSpawned = false;
+  private macEntry?: { entry: MacFeedEntry; bundle: string };
+  private downloading = false;
+  /** Set when you click Update: restart as soon as the download is ready. */
+  private restartWhenReady = false;
 
   get current(): UpdateState { return this.state; }
 
@@ -134,8 +138,32 @@ export class UpdateService extends EventEmitter {
     if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
     const entry = parseMacFeed(await res.text(), process.arch);
     if (!entry || compareVersions(entry.version, app.getVersion()) <= 0) { this.set({ status: 'none' }); return; }
+    this.macEntry = { entry, bundle };
     this.set({ status: 'available', version: entry.version });
-    await this.downloadMac(entry, bundle);
+  }
+
+  /** The "Update" button: downloads the new version inside the app, then restarts into it. */
+  async download(): Promise<UpdateState> {
+    if (this.state.status === 'ready') { this.install(); return this.state; }
+    if (this.state.status !== 'available' || this.state.notifyOnly || this.downloading) return this.state;
+    this.downloading = true;
+    this.restartWhenReady = true;
+    try {
+      if (this.macEntry) await this.downloadMac(this.macEntry.entry, this.macEntry.bundle);
+      else {
+        this.set({ status: 'downloading', version: this.state.version, percent: 0 });
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { autoUpdater } = require('electron-updater') as typeof import('electron-updater');
+        await autoUpdater.downloadUpdate(); // 'update-downloaded' marks it ready and restarts
+      }
+      if ((this.state as UpdateState).status === 'ready' && this.restartWhenReady) this.install();
+    } catch (e) {
+      this.restartWhenReady = false;
+      this.set({ status: 'error', message: friendly(e) });
+    } finally {
+      this.downloading = false;
+    }
+    return this.state;
   }
 
   private async downloadMac(entry: MacFeedEntry, bundle: string) {
@@ -181,7 +209,7 @@ export class UpdateService extends EventEmitter {
     const { autoUpdater } = require('electron-updater') as typeof import('electron-updater');
     if (!this.wired) {
       this.wired = true;
-      autoUpdater.autoDownload = true;
+      autoUpdater.autoDownload = false; // the download starts when you click Update
       autoUpdater.autoInstallOnAppQuit = true;
       autoUpdater.allowPrerelease = false;
       autoUpdater.allowDowngrade = false;
@@ -189,7 +217,7 @@ export class UpdateService extends EventEmitter {
       autoUpdater.on('update-available', (info) => this.set({ status: 'available', version: info.version }));
       autoUpdater.on('update-not-available', () => this.set({ status: 'none' }));
       autoUpdater.on('download-progress', (p) => this.set({ status: 'downloading', percent: Math.round(p.percent) }));
-      autoUpdater.on('update-downloaded', (info) => this.set({ status: 'ready', version: info.version, percent: 100 }));
+      autoUpdater.on('update-downloaded', (info) => { this.set({ status: 'ready', version: info.version, percent: 100 }); if (this.restartWhenReady && !this.downloading) this.install(); });
       autoUpdater.on('error', (e) => this.set({ status: 'error', message: friendly(e) }));
     }
     await autoUpdater.checkForUpdates();

@@ -43,6 +43,7 @@ const api: LumiApi = {
   updates: {
     getState: () => ipcRenderer.invoke('update:getState'),
     check: () => ipcRenderer.invoke('update:check'),
+    download: () => ipcRenderer.invoke('update:download'),
     install: () => ipcRenderer.invoke('update:install'),
     openDownload: () => ipcRenderer.invoke('update:openDownload'),
   },

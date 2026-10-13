@@ -318,6 +318,8 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
             <button className="primary-btn" onClick={() => void api.updates.install()}>Restart to update</button>
           ) : update_?.status === 'available' && update_.notifyOnly ? (
             <button className="primary-btn" onClick={() => void api.updates.openDownload()}>Download {update_.version}</button>
+          ) : update_?.status === 'available' ? (
+            <button className="primary-btn" onClick={() => void api.updates.download()}>Update to {update_.version}</button>
           ) : (
             <button className="pill-btn ghost small" disabled={!update_ || update_.status === 'checking' || update_.status === 'downloading' || update_.status === 'unsupported'} onClick={() => void api.updates.check()}>Check now</button>
           )}

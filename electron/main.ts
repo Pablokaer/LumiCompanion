@@ -154,9 +154,9 @@ async function bootstrap() {
   setInterval(checkBriefing, 60_000);
   updates.on('state', (s) => {
     send('update:state', s);
-    const worthTellingAbout = s.status === 'ready' || (s.status === 'available' && s.notifyOnly);
+    const worthTellingAbout = s.status === 'ready' || s.status === 'available';
     if (worthTellingAbout && s.version && notifiedUpdate !== s.version) {
-      if (notify(`Lumi ${s.version} is available`, s.notifyOnly ? 'Open Lumi to download the new version.' : 'Restart Lumi to finish updating.')) notifiedUpdate = s.version;
+      if (notify(`Lumi ${s.version} is available`, s.status === 'ready' ? 'Restart Lumi to finish updating.' : s.notifyOnly ? 'Open Lumi to download the new version.' : 'Open Lumi and click Update.')) notifiedUpdate = s.version;
     }
   });
   updates.start(() => getSettings().autoUpdate);
@@ -316,6 +316,7 @@ function registerIpc() {
   // --- Updates ---
   ipcMain.handle('update:getState', () => updates.current);
   ipcMain.handle('update:check', () => updates.check(true));
+  ipcMain.handle('update:download', () => updates.download());
   ipcMain.handle('update:install', () => updates.install());
   ipcMain.handle('update:openDownload', () => shell.openExternal(RELEASES_PAGE));
 
