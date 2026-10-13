@@ -175,7 +175,9 @@ async function bootstrap() {
     if (!win || !win.isVisible() || !getSettings().followMouse) return;
     const p = screen.getCursorScreenPoint();
     const b = win.getBounds();
-    const x = p.x - b.x, y = p.y - b.y;
+    // The page is zoomed by the widget scale, so its CSS pixels are not the window's pixels.
+    const z = getSettings().widgetScale || 1;
+    const x = Math.round((p.x - b.x) / z), y = Math.round((p.y - b.y) / z);
     const key = `${x},${y}`;
     if (key === lastCursor) return;
     lastCursor = key;
@@ -422,7 +424,7 @@ function registerIpc() {
   ipcMain.handle('settings:update', (_e, patch: Partial<Settings>) => {
     const next = updateSettings(patch);
     applySystemSettings(next);
-    if ('widgetView' in patch) refreshWindowSize();
+    if ('widgetView' in patch || 'widgetScale' in patch) refreshWindowSize();
     rebuildTrayMenu(() => applySystemSettings());
     if ('emailLookbackDays' in patch || 'aiEmailTriage' in patch) void sync.refreshEmails();
     if ('dndFullscreen' in patch || 'dndMeetings' in patch || 'dndUntil' in patch) dnd.applySettings();

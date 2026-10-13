@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS: Settings = {
   mascotName: 'Lumi',
   widgetMode: 'desktop',
   widgetView: 'mascot',
+  widgetScale: 1,
   skin: 'classic',
   customColor: '#ff6fae',
   colorSwatches: [],
@@ -76,11 +77,15 @@ export function getSettings(): Settings {
   return settingsCache;
 }
 
+/** The widget size factor, kept between 0.6 and 1. */
+export const clampScale = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? Math.min(1, Math.max(0.6, Math.round(n * 100) / 100)) : 1);
+
 export function updateSettings(patch: Partial<Settings>): Settings {
   const next = { ...getSettings(), ...patch };
   next.reminderLeadMinutes = [...new Set(next.reminderLeadMinutes.filter((n) => Number.isFinite(n) && n >= 0))]
     .sort((a, b) => b - a);
   next.emailLookbackDays = Math.min(14, Math.max(1, Math.round(next.emailLookbackDays || 2)));
+  next.widgetScale = clampScale(next.widgetScale);
   settingsCache = next;
   writeJson(userFile('settings.json'), next);
   return next;
