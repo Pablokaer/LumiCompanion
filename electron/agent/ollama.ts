@@ -95,7 +95,18 @@ export function ollamaCandidates(platform = process.platform, env: NodeJS.Proces
  * answers. Resolves with the final status; never throws. The server is left
  * running when Lumi quits, like it would be if the user had started it.
  */
-export async function ensureOllama(baseUrl: string, waitMs = 20_000): Promise<OllamaStatus> {
+export function ensureOllama(baseUrl: string, waitMs = 20_000): Promise<OllamaStatus> {
+  // One start at a time: startup and the automatic setup both ask, and a second `ollama serve` would be a second process.
+  const pending = starting.get(baseUrl);
+  if (pending) return pending;
+  const p = startOllama(baseUrl, waitMs).finally(() => starting.delete(baseUrl));
+  starting.set(baseUrl, p);
+  return p;
+}
+
+const starting = new Map<string, Promise<OllamaStatus>>();
+
+async function startOllama(baseUrl: string, waitMs: number): Promise<OllamaStatus> {
   const current = await ollamaStatus(baseUrl);
   if (current.running || !isLocalUrl(baseUrl)) return current;
 
