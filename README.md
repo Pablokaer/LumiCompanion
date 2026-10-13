@@ -301,7 +301,7 @@ scripts/oauth-json.mjs Builds google-oauth.json from .env or environment variabl
 ## Privacy & security
 
 - Google data is fetched directly from Google to your computer. There is no Lumi backend.
-- Tokens are encrypted at rest with the OS keychain (DPAPI on Windows, Keychain on macOS).
+- Tokens are encrypted at rest with the OS keychain (DPAPI on Windows, Keychain on macOS). You stay signed in across restarts (Settings → Account → "Stay signed in"; turn it off to sign in again every run). A missing network right after the computer starts never signs you out; only Google rejecting the sign-in does. Note: while your Google Cloud OAuth consent screen is in "Testing" status, Google itself expires the sign-in after 7 days; publish the app (or switch to "In production") to avoid that.
 - The renderer is sandboxed with `contextIsolation` and a strict CSP in production. It can only open `https` links to `*.google.com` and known video-meeting services externally.
 - The agent can only *read* email (`gmail.readonly`). Creating a calendar event always needs your click.
 - The Docs permission (`documents`) is used only to create the documents you ask for. Only files you pick in the file dialog are read.

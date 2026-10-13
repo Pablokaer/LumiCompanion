@@ -333,6 +333,7 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
             <div className="hint">{auth.profile?.email}</div>
           </div>
         </div>
+        <Toggle label="Stay signed in" hint="Keep your Google sign-in between runs and after restarting the computer. Off: you sign in again each time Lumi starts." checked={settings.keepSignedIn} onChange={(v) => update({ keepSignedIn: v })} />
         <button className="pill-btn ghost danger" onClick={async () => onSignedOut(await api.auth.signOut())}>Sign out</button>
       </section>
     </div>

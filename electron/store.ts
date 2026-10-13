@@ -28,6 +28,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reactToSystem: true,
   proactiveTips: true,
   tipFrequency: 'normal',
+  keepSignedIn: true,
   sleepAfterMinutes: 3,
   reactToMusic: true,
   autoUpdate: true,
@@ -98,6 +99,8 @@ export interface StoredTokens {
   /** epoch ms */
   expires_at: number;
   scope?: string;
+  /** Last known profile, so the app can still show who is signed in while offline. */
+  profile?: { name: string; email: string; picture?: string };
 }
 
 const TOKENS_FILE = () => userFile('google-tokens.bin');

@@ -115,8 +115,13 @@ function resizeWindow() {
 export function applyWidgetMode(widgetMode: WidgetMode) {
   if (!win) return;
   const onTop = widgetMode === 'onTop';
-  win.setAlwaysOnTop(onTop, 'floating');
+  // Workspaces first: on macOS, changing them afterwards can bring back a floating window level.
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: onTop });
+  if (onTop) win.setAlwaysOnTop(true, 'floating');
+  else {
+    win.setAlwaysOnTop(false, 'normal');
+    win.setAlwaysOnTop(false);
+  }
   win.setSkipTaskbar(true);
 }
 

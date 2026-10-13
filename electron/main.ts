@@ -23,7 +23,7 @@ import { WeatherService } from './services/weather';
 import { QuickCapture } from './quickCapture';
 import { RELEASES_PAGE, UpdateService } from './updater';
 import { LANGUAGE_NAMES, transcribe } from './voice/transcribe';
-import { getSettings, loadDotEnv, updateSettings } from './store';
+import { clearTokens, getSettings, loadDotEnv, updateSettings } from './store';
 import { createTray, rebuildTrayMenu } from './tray';
 import { applyWidgetMode, createWidgetWindow, getWindow, peek, refreshWindowSize, setWindowMode, toggleWindow } from './window';
 
@@ -415,6 +415,6 @@ function registerIpc() {
   });
 }
 
-app.on('will-quit', () => { dnd.stop(); weather.stop(); quick.dispose(); globalShortcut.unregisterAll(); });
+app.on('will-quit', () => { if (!getSettings().keepSignedIn) clearTokens(); dnd.stop(); weather.stop(); quick.dispose(); globalShortcut.unregisterAll(); });
 // Keep running in the tray when the window is closed.
 app.on('window-all-closed', () => { /* stay alive */ });

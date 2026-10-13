@@ -121,6 +121,8 @@ export interface Settings {
   /** Occasional gentle tips: water, stretching, resting your eyes, bedtime. */
   proactiveTips: boolean;
   tipFrequency: 'rare' | 'normal' | 'often';
+  /** Stay signed in to Google between runs. Off: you sign in again every time the app starts. */
+  keepSignedIn: boolean;
   /** She reacts when the mouse passes over her: laughs, blushes, purrs, tries to bite. */
   petReactions: boolean;
   /** Minutes without keyboard/mouse use before the star falls asleep; 0 = never. */

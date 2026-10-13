@@ -41,9 +41,12 @@ export async function getAuthState(): Promise<AuthState> {
   if (!configured || !tokens) return { configured, signedIn: false };
   try {
     return { configured, signedIn: true, profile: await getProfile() };
-  } catch {
-    // Tokens are unusable (revoked/expired refresh token).
-    return { configured, signedIn: false };
+  } catch (e) {
+    // Google refused the tokens (revoked, or expired refresh token): really signed out.
+    if (e instanceof NotSignedInError) return { configured, signedIn: false };
+    // Anything else (no network yet right after the computer starts, Google unreachable) is temporary:
+    // stay signed in and show the last known profile instead of asking for the login again.
+    return { configured, signedIn: true, profile: tokens.profile ?? { name: '', email: '' } };
   }
 }
 
@@ -127,7 +130,7 @@ export async function getAccessToken(): Promise<string> {
     refresh_token: tokens.refresh_token,
     grant_type: 'refresh_token',
   });
-  const next = { ...toStored(res), refresh_token: res.refresh_token ?? tokens.refresh_token };
+  const next = { ...toStored(res), refresh_token: res.refresh_token ?? tokens.refresh_token, profile: tokens.profile };
   saveTokens(next);
   return next.access_token;
 }
@@ -148,6 +151,8 @@ export async function getProfile(): Promise<UserProfile> {
   if (profileCache) return profileCache;
   const info = await googleFetch<{ name?: string; email: string; picture?: string; given_name?: string }>(USERINFO_URL);
   profileCache = { name: info.given_name ?? info.name ?? info.email, email: info.email, picture: info.picture };
+  const stored = loadTokens();
+  if (stored) saveTokens({ ...stored, profile: profileCache });
   return profileCache;
 }
 
@@ -162,6 +167,7 @@ async function postForm(url: string, body: Record<string, string>) {
     body: new URLSearchParams(body),
   });
   const json = (await res.json()) as any;
+  if (json?.error === 'invalid_grant') throw new NotSignedInError();
   if (!res.ok) throw new Error(`Google token error: ${json.error_description ?? json.error ?? res.status}`);
   return json as { access_token: string; refresh_token?: string; expires_in: number; scope?: string };
 }
