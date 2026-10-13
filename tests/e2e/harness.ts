@@ -22,7 +22,7 @@ export class RunningApp {
     const args = ['.', `--user-data-dir=${dataDir}`, `--remote-debugging-port=${port}`];
     // CI containers have no sandbox helper; a normal desktop does not need this.
     if (process.platform === 'linux') args.push('--no-sandbox', '--disable-gpu');
-    const proc = spawn(electron, args, { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ELECTRON_ENABLE_LOGGING: '1', LUMI_NO_AUTOSETUP: '1' } });
+    const proc = spawn(electron, args, { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ELECTRON_ENABLE_LOGGING: '1', LUMI_NO_AUTOSETUP: '1', LUMI_NO_PROBE: '1' } });
     const app = new RunningApp(proc, dataDir, port);
     proc.stdout?.on('data', (d) => app.logs.push(String(d)));
     proc.stderr?.on('data', (d) => app.logs.push(String(d)));

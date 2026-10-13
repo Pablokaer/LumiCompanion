@@ -26,7 +26,7 @@ export class FullscreenProbe extends EventEmitter {
   private timer?: NodeJS.Timeout;
 
   start() {
-    if (process.platform !== 'win32' || this.timer) return;
+    if (process.platform !== 'win32' || this.timer || process.env.LUMI_NO_PROBE) return;
     const poll = () => {
       const state = queryNotificationState();
       if (state !== undefined) this.set(isBusyNotificationState(state));

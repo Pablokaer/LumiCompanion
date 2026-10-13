@@ -5,3 +5,6 @@ release/
 .env
 google-oauth.json
 .vs/
+tests/visual-baseline/
+tests/visual-after/
+vite.log
