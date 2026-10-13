@@ -3,7 +3,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { LumiApi } from '../shared/types';
 
-const EVENTS = new Set(['reminder', 'data:updated', 'agent:confirm', 'agent:status', 'auth:changed', 'settings:changed', 'focus:changed', 'briefing', 'activity', 'update:state', 'cursor', 'dnd:state', 'weather:state', 'system', 'quick:show']);
+const EVENTS = new Set(['reminder', 'data:updated', 'agent:confirm', 'agent:status', 'auth:changed', 'settings:changed', 'focus:changed', 'briefing', 'activity', 'update:state', 'cursor', 'dnd:state', 'weather:state', 'system', 'quick:show', 'ollama:setup']);
 
 const api: LumiApi = {
   auth: {
@@ -21,6 +21,8 @@ const api: LumiApi = {
     send: (history) => ipcRenderer.invoke('agent:send', history),
     respondConfirm: (id, approved) => ipcRenderer.invoke('agent:respondConfirm', id, approved),
     ollamaStatus: () => ipcRenderer.invoke('agent:ollamaStatus'),
+    setupOllama: () => ipcRenderer.invoke('agent:setupOllama'),
+    setupState: () => ipcRenderer.invoke('agent:setupState'),
   },
   focus: {
     get: () => ipcRenderer.invoke('focus:get'),

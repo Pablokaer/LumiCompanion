@@ -10,6 +10,7 @@ import { weatherSummary } from '../shared/weather';
 import { runAgent } from './agent/agent';
 import { draftReply, eventFromText, suggestEventFromEmail } from './agent/mailTools';
 import { ensureOllama, ollamaStatus } from './agent/ollama';
+import { OllamaSetup } from './agent/ollamaSetup';
 import { answerAssignment } from './docs/assignment';
 import { SUPPORTED_EXTENSIONS } from './docs/extract';
 import { getAuthState, getProfile, hasScope, signIn, signOut } from './google/auth';
@@ -45,6 +46,7 @@ const pendingConfirms = new Map<string, (approved: boolean) => void>();
 const pickedFiles = new Set<string>();
 const focus = new FocusService();
 const updates = new UpdateService();
+const ollamaSetup = new OllamaSetup();
 let notifiedUpdate = '';
 
 const dnd = new DndService({
@@ -178,6 +180,9 @@ async function bootstrap() {
   // Tell the star how long the computer has been idle so she can fall asleep (and wake up).
   setInterval(() => send('activity', { idleSeconds: powerMonitor.getSystemIdleTime() }), 5_000);
   void tryStartOllama();
+  ollamaSetup.on('state', (s) => send('ollama:setup', s));
+  // When Ollama or its model is missing, set it up by itself a few seconds after opening (Windows and macOS).
+  setTimeout(() => { if (getSettings().autoSetupOllama && !process.env.LUMI_NO_AUTOSETUP) void ollamaSetup.ensure(getSettings().ollamaUrl, getSettings().ollamaModel); }, 8_000);
 
   // ---- do not disturb ----
   dnd.on('state', (state, was) => {
@@ -249,6 +254,8 @@ function registerIpc() {
   });
 
   // --- Agent ---
+  ipcMain.handle('agent:setupOllama', () => ollamaSetup.ensure(getSettings().ollamaUrl, getSettings().ollamaModel));
+  ipcMain.handle('agent:setupState', () => ollamaSetup.current);
   ipcMain.handle('agent:ollamaStatus', async () => {
     const status = await ollamaStatus(getSettings().ollamaUrl);
     if (!status.running && getSettings().autoStartOllama) await tryStartOllama();

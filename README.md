@@ -123,6 +123,10 @@ Click the microphone button in Chat, speak, and click it again. Your speech is t
 - **Draft reply** (Inbox → "Draft reply"): optionally type what you want to say, then Lumi writes a draft with the *writing* model. Edit it and click "Save to Gmail drafts". It needs the `gmail.compose` permission. Lumi only creates drafts, it never sends.
 - **Make event** (Inbox → "Make event"): the *chat* model looks for one meeting, appointment or deadline with a concrete date. If it finds one you get a prefilled form to confirm. Date-only results become all-day events.
 
+## The local AI sets itself up
+
+On **Windows and macOS**, when Lumi opens and finds no Ollama (or Ollama without any model), it sets the local AI up by itself a few seconds later, with a progress bar at the top of the panel: it downloads the official installer from `ollama.com` (Windows: a silent per-user install, no administrator rights; macOS: the app is unpacked into `/Applications`, or `~/Applications` if that is not writable), starts it, and downloads the default model (a few GB, once, through Ollama itself). Nothing is downloaded when a local Ollama with a model is already there, and only a local server (`localhost`) is ever managed. Turn it off in Settings → Local AI (Ollama) ("Install the local AI automatically"), or run it by hand with "Set up the local AI now". On **Linux** the official installer needs administrator rights, so Lumi shows the one command to run instead.
+
 ## Answering assignments into a Google Doc
 
 1. Make sure Ollama is running with a tool-capable model and that you granted the Google Docs permission (see above).

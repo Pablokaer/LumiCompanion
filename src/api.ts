@@ -28,7 +28,7 @@ function createMockApi(): LumiApi {
   const params = new URLSearchParams(location.search);
   let auth: AuthState = { configured: true, signedIn: params.get('signedIn') !== '0', profile: { name: 'Pablo', email: 'pablo@example.com' } };
   let settings: Settings = {
-    mascotName: 'Lumi', widgetMode: 'desktop', widgetView: (params.get('view') as Settings['widgetView']) ?? 'mascot', skin: ((params.get('skin') as Settings['skin']) ?? 'classic'), customColor: '#' + (params.get('color') ?? 'ff6fae'), colorSwatches: ['#ff6fae', '#34d399', '#f59e0b'], shape: (params.get('shape') as Settings['shape']) ?? 'star', accessories: (params.get('acc')?.split(',').filter(Boolean) ?? []) as Settings['accessories'], mascotLife: true, followMouse: true, petReactions: true, dndFullscreen: true, dndMeetings: false, dndHideWidget: true, quickCapture: true, quickCaptureShortcut: 'CommandOrControl+Shift+Space', weather: true, weatherPlace: '', temperatureUnit: 'c', seasonalLook: true, reactToSystem: true, proactiveTips: true, tipFrequency: 'normal', keepSignedIn: true, sleepAfterMinutes: 3, reactToMusic: true, autoUpdate: true, autoStartOllama: true, morningBriefing: true, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', modelChat: '', modelTriage: '', modelWriting: '', launchAtLogin: true, reminderLeadMinutes: [15, 5], systemNotifications: true,
+    mascotName: 'Lumi', widgetMode: 'desktop', widgetView: (params.get('view') as Settings['widgetView']) ?? 'mascot', skin: ((params.get('skin') as Settings['skin']) ?? 'classic'), customColor: '#' + (params.get('color') ?? 'ff6fae'), colorSwatches: ['#ff6fae', '#34d399', '#f59e0b'], shape: (params.get('shape') as Settings['shape']) ?? 'star', accessories: (params.get('acc')?.split(',').filter(Boolean) ?? []) as Settings['accessories'], mascotLife: true, followMouse: true, petReactions: true, dndFullscreen: true, dndMeetings: false, dndHideWidget: true, quickCapture: true, quickCaptureShortcut: 'CommandOrControl+Shift+Space', weather: true, weatherPlace: '', temperatureUnit: 'c', seasonalLook: true, reactToSystem: true, proactiveTips: true, tipFrequency: 'normal', keepSignedIn: true, autoSetupOllama: true, sleepAfterMinutes: 3, reactToMusic: true, autoUpdate: true, autoStartOllama: true, morningBriefing: true, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', modelChat: '', modelTriage: '', modelWriting: '', launchAtLogin: true, reminderLeadMinutes: [15, 5], systemNotifications: true,
     ollamaUrl: 'http://127.0.0.1:11434', ollamaModel: 'llama3.1:8b', aiEmailTriage: true, emailLookbackDays: 2,
   };
   const events: CalendarEvent[] = [
@@ -99,6 +99,22 @@ function createMockApi(): LumiApi {
       },
       respondConfirm: async () => undefined,
       ollamaStatus: async () => ({ running: true, models: ['llama3.1:8b', 'qwen2.5:7b'] }),
+      setupOllama: async () => {
+        for (const [status, percent] of [['downloading', 20], ['downloading', 90], ['installing', 0], ['pulling', 15], ['pulling', 70]] as const) {
+          emit('ollama:setup', { status, percent, model: 'qwen2.5:7b', message: status === 'downloading' ? 'Downloading Ollama' : status === 'installing' ? 'Installing Ollama' : 'Downloading the qwen2.5:7b model' });
+          await wait(600);
+        }
+        emit('ollama:setup', { status: 'ready' });
+        return { status: 'ready' as const };
+      },
+      setupState: async () => {
+        const f = params.get('ollama');
+        if (f === 'downloading') return { status: 'downloading' as const, percent: 42, message: 'Downloading Ollama' };
+        if (f === 'pulling') return { status: 'pulling' as const, percent: 63, model: 'qwen2.5:7b', message: 'Downloading the qwen2.5:7b model' };
+        if (f === 'error') return { status: 'error' as const, message: 'Could not reach ollama.com. Check your internet connection; Lumi will try again next time it opens.' };
+        if (f === 'unsupported') return { status: 'unsupported' as const, message: 'On Linux, install Ollama with:  curl -fsSL https://ollama.com/install.sh | sh  (it needs administrator rights), then reopen Lumi.' };
+        return { status: 'idle' as const };
+      },
     },
     updates: (() => {
       const forced = params.get('update');

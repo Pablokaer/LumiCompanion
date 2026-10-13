@@ -13,6 +13,7 @@ import { BriefingCard } from './BriefingCard';
 import { dndText } from './DndBadge';
 import { JoinButton } from './JoinButton';
 import { NoticeToast } from './NoticeToast';
+import { OllamaBanner } from './OllamaBanner';
 import { UpdateBanner } from './UpdateBanner';
 import { formatClock, useRemaining } from './FocusCard';
 import { CalendarIcon, ChatIcon, CloseIcon, GearIcon, MailIcon, MinimizeIcon, OrbitIcon, RefreshIcon } from './Icons';
@@ -93,6 +94,7 @@ export function Panel(p: Props) {
 
       <main className="panel-body">
         <UpdateBanner />
+        <OllamaBanner />
         {p.notice && <NoticeToast notice={p.notice} onDismiss={p.onDismissNotice} />}
         {p.briefing && <BriefingCard briefing={p.briefing} onDismiss={p.onDismissBriefing} />}
         {p.tab === 'today' && <TodayTab events={p.data.events} now={p.now} name={p.auth.profile?.name} focus={p.focus} focusMinutes={p.settings.focusMinutes} />}

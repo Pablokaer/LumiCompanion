@@ -133,6 +133,8 @@ export interface Settings {
   autoUpdate: boolean;
   /** Start `ollama serve` automatically when it is installed but not running. */
   autoStartOllama: boolean;
+  /** Download and install Ollama and its model by itself when they are missing (Windows and macOS). */
+  autoSetupOllama: boolean;
   morningBriefing: boolean;
   /** Local "HH:mm" after which the morning briefing is shown once per day. */
   briefingTime: string;
@@ -154,6 +156,15 @@ export interface Settings {
   modelWriting: string;
   aiEmailTriage: boolean;
   emailLookbackDays: number;
+}
+
+/** Progress of setting up the local AI (Ollama and its model) by itself. */
+export interface OllamaSetupState {
+  status: 'idle' | 'downloading' | 'installing' | 'starting' | 'pulling' | 'ready' | 'error' | 'unsupported';
+  /** 0-100 while downloading Ollama or its model. */
+  percent?: number;
+  model?: string;
+  message?: string;
 }
 
 export interface OllamaStatus {
@@ -275,6 +286,9 @@ export interface LumiApi {
     send(history: ChatMessage[]): Promise<string>;
     respondConfirm(id: string, approved: boolean): Promise<void>;
     ollamaStatus(): Promise<OllamaStatus>;
+    /** Installs Ollama (if missing), starts it and downloads the model. Progress arrives as 'ollama:setup' events. */
+    setupOllama(): Promise<OllamaSetupState>;
+    setupState(): Promise<OllamaSetupState>;
   };
   focus: {
     get(): Promise<FocusState | undefined>;
@@ -345,7 +359,7 @@ export interface LumiApi {
     openExternal(url: string): Promise<void>;
   };
   on(
-    channel: 'reminder' | 'data:updated' | 'agent:confirm' | 'agent:status' | 'auth:changed' | 'settings:changed' | 'focus:changed' | 'briefing' | 'activity' | 'update:state' | 'cursor' | 'dnd:state' | 'weather:state' | 'system' | 'quick:show',
+    channel: 'reminder' | 'data:updated' | 'agent:confirm' | 'agent:status' | 'auth:changed' | 'settings:changed' | 'focus:changed' | 'briefing' | 'activity' | 'update:state' | 'cursor' | 'dnd:state' | 'weather:state' | 'system' | 'quick:show' | 'ollama:setup',
     listener: (payload: any) => void,
   ): () => void;
 }

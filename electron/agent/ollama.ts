@@ -86,7 +86,7 @@ export function ollamaCandidates(platform = process.platform, env: NodeJS.Proces
   if (platform === 'win32') {
     return [path.join(env.LOCALAPPDATA ?? '', 'Programs', 'Ollama', 'ollama.exe'), 'ollama.exe'];
   }
-  if (platform === 'darwin') return ['/Applications/Ollama.app/Contents/Resources/ollama', '/opt/homebrew/bin/ollama', '/usr/local/bin/ollama', 'ollama'];
+  if (platform === 'darwin') return ['/Applications/Ollama.app/Contents/Resources/ollama', path.join(env.HOME ?? '', 'Applications', 'Ollama.app', 'Contents', 'Resources', 'ollama'), '/opt/homebrew/bin/ollama', '/usr/local/bin/ollama', 'ollama'];
   return ['/usr/local/bin/ollama', '/usr/bin/ollama', 'ollama'];
 }
 

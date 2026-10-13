@@ -9,6 +9,7 @@ import { addSwatch, removeSwatch } from '../../shared/color';
 import { ACCESSORY_LABEL, SHAPE_INFO, SKINS, SLOT_LABEL, type PresetSkin } from '../appearance';
 import { ColorPicker } from '../components/ColorPicker';
 import { Mascot } from '../components/Mascot';
+import { describeSetup, useOllamaSetup } from '../components/OllamaBanner';
 import { useLife } from '../mascotLife';
 import { describeUpdate, useUpdateState } from '../updates';
 
@@ -31,6 +32,7 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
 }) {
   const [ollama, setOllama] = useState<OllamaStatus>();
   const life = useLife();
+  const setup = useOllamaSetup();
   const dnd = useDnd();
   const weather = useWeather();
   const [place, setPlace] = useState(settings.weatherPlace);
@@ -269,6 +271,9 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
           <span>Server URL</span>
           <input value={ollamaUrl} onChange={(e) => setOllamaUrl(e.target.value)} onBlur={() => ollamaUrl !== settings.ollamaUrl && update({ ollamaUrl })} />
         </label>
+        <Toggle label="Install the local AI automatically" hint="When Ollama or its model is missing, Lumi downloads and sets them up by itself shortly after opening (Windows and macOS; the model is a few GB, downloaded once). Nothing is downloaded when a local Ollama with a model is already there." checked={settings.autoSetupOllama} onChange={(v) => update({ autoSetupOllama: v })} />
+        {setup.status !== 'idle' && <p className={`hint${setup.status === 'error' || setup.status === 'unsupported' ? ' warn' : ''}`}>{setup.status === 'ready' ? 'Local AI is set up ✦' : describeSetup(setup) || setup.message}</p>}
+        {(setup.status === 'idle' || setup.status === 'error') && <button className="pill-btn ghost small" onClick={() => void api.agent.setupOllama()}>Set up the local AI now</button>}
         <Toggle label="Start Ollama automatically" hint="If it is installed but stopped, Lumi launches it for you." checked={settings.autoStartOllama} onChange={(v) => update({ autoStartOllama: v })} />
         <label className="field">
           <span>Default model</span>
