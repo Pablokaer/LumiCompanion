@@ -225,7 +225,7 @@ The end-to-end tests (`npm run test:e2e`, after `npm run build`) start the real 
 
 Notes:
 
-- Builds are **unsigned**. Windows shows a SmartScreen warning (More info → Run anyway) and macOS needs right-click → Open (or `xattr -cr /Applications/Lumi.app`). Add signing certificates to the workflow secrets to remove this.
+- Builds have no developer certificate. Windows shows a SmartScreen warning (More info → Run anyway). The macOS app is only **ad-hoc signed** (which Apple Silicon requires to run at all), so macOS still blocks the first launch: right-click → Open, or if it says the app "is damaged", run `xattr -cr /Applications/Lumi.app` in Terminal. Add real signing certificates to the workflow secrets to remove these warnings.
 - The installers bundle your OAuth client secret. Google treats the secret of a desktop app as non-confidential, but if the repository is public, anyone can read it from the release files. Prefer a private repository, or use a separate OAuth client for public builds.
 - **Android is not supported.** Lumi is an Electron app, which only runs on desktop operating systems. An Android version would be a separate project (for example React Native or Capacitor) and could not run the local Ollama and Whisper features in the same way.
 

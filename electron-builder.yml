@@ -47,6 +47,10 @@ mac:
   target: dmg
   icon: build/icon.png
   category: public.app-category.productivity
+  # Ad-hoc signature: Apple Silicon refuses to run completely unsigned apps. Not a developer ID, so Gatekeeper still warns.
+  identity: "-"
+  hardenedRuntime: false
+  gatekeeperAssess: false
   extendInfo:
     LSUIElement: true
     NSMicrophoneUsageDescription: Lumi uses the microphone for voice input in the chat.
