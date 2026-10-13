@@ -17,6 +17,7 @@ import { Panel, type Tab } from './components/Panel';
 import { Starfield } from './components/Starfield';
 import { moodFor } from './face';
 import { setPointer } from './gaze';
+import { setPower } from './power';
 import { fmtTime, greeting, nextEvent } from './format';
 import { LifeProvider, useMascotLife, useMusic } from './mascotLife';
 
@@ -57,6 +58,7 @@ export default function App() {
       api.on('focus:changed', (f?: FocusState) => { setFocus(f ?? undefined); if (!f) setHappyUntil(Date.now() + 6000); }),
       api.on('briefing', (b: Briefing) => setBriefing(b)),
       api.on('activity', (a: { idleSeconds: number }) => setIdleSeconds(a.idleSeconds)),
+      api.on('power', (p: { hidden: boolean }) => setPower({ hidden: !!p.hidden })),
       api.on('cursor', (c: { x: number; y: number }) => {
         setPointer(c.x, c.y, performance.now());
         setIdleSeconds(0); // the cursor only moves when someone is there, so she wakes up right away
@@ -122,6 +124,7 @@ export default function App() {
     followMouse: settings?.followMouse ?? true,
     petReactions: settings?.petReactions ?? true,
     quiet,
+    expanded: mode === 'expanded',
     notice,
     calm: !!reminder || chat.status.state !== 'idle' || !!focus,
   });

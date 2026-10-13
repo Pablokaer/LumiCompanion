@@ -103,6 +103,8 @@ Lumi is meant to be light on a laptop. The details are in the sections below; th
 
 **Measuring.** Start the app with `LUMI_PERF=1` (for example `LUMI_PERF=1 npm run dev`, or `$env:LUMI_PERF=1` in PowerShell) and it prints the CPU use of the window (renderer), the GPU process and the main process every 5 seconds, in percent of one core. It is a development aid and does nothing otherwise. `npx electron scripts/perf-measure.cjs` (with `npm run preview:ui` running) measures the widget in five situations (idle, covered, asleep, dancing, panel open) and prints a table; `MAC_LIKE=1` makes it use the macOS window policy.
 
+**Animation frame rate.** The mascot's loop draws only as often as she needs: 60 fps while dancing, reacting, doing an action, following the cursor, easing between states or with the panel open; 30 fps while she floats quietly; 15 fps while asleep; and not at all while the window is hidden, minimised or the screen is locked. Speed never depends on the frame rate, so the motion looks the same. Her position is measured once (and when the layout changes) instead of on every frame, DOM styles are only written when a value changed, and the reaction timer stops while nobody can see her.
+
 **Checking that the look did not change.** With `npm run preview:ui` running, `npx electron scripts/visual-shots.cjs capture tests/visual-baseline` takes reference screenshots of every mood, action, reaction, dance pose and view (with a fake clock, so they are repeatable), and `... compare tests/visual-baseline tests/visual-after` lists every pixel difference with its bounding box. The speech-bubble text and a few labels change from run to run; the star itself must not.
 
 ## Custom colour

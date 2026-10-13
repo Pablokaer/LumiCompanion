@@ -58,6 +58,11 @@ export class InteractionController {
 
   constructor(private rand: () => number = Math.random) {}
 
+  /** True while something needs `tick()`: a reaction is playing, or the pointer is on her (staring turns into shyness). */
+  get needsTick(): boolean {
+    return this.reaction !== 'none' || this.hovering;
+  }
+
   /** The pointer came onto her. Returns true when her reaction changed. */
   enter(now: number): boolean {
     this.hovering = true;
