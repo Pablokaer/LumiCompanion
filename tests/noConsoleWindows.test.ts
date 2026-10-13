@@ -27,6 +27,11 @@ describe('no console windows', () => {
         expect(m[1], `${path.basename(f)}: ${m[0]}`).toMatch(/windowsHide:\s*true/);
       }
       expect(text, f).not.toMatch(/(?<![.\w])(exec|execSync|spawnSync|execFileSync)\(/);
+      // `detached: true` on Windows = no console, so the child's own children each open a visible console window.
+      for (const m of text.matchAll(/\bspawn\(([^;]*?)\);?/g)) {
+        if (/['"]\/(bin|usr)\//.test(m[1])) continue;
+        expect(m[1], `${path.basename(f)}: ${m[0]}`).not.toMatch(/detached:\s*true/);
+      }
     }
   });
 });

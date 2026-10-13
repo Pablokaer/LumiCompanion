@@ -113,7 +113,9 @@ async function startOllama(baseUrl: string, waitMs: number): Promise<OllamaStatu
   for (const exe of ollamaCandidates()) {
     if (path.isAbsolute(exe) && !fs.existsSync(exe)) continue;
     const started = await new Promise<boolean>((resolve) => {
-      const child = spawn(exe, ['serve'], { detached: true, stdio: 'ignore', windowsHide: true });
+      // Not detached on Windows: a process without a console makes every runner Ollama starts open its own visible console window.
+      // Hidden-but-attached (CREATE_NO_WINDOW) gives them a hidden console to inherit; the server still outlives Lumi.
+      const child = spawn(exe, ['serve'], { detached: process.platform !== 'win32', stdio: 'ignore', windowsHide: true });
       child.once('error', () => resolve(false));
       child.once('spawn', () => { child.unref(); resolve(true); });
     });
