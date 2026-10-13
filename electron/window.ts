@@ -10,8 +10,10 @@ const COMPACT_SIZES: Record<WidgetView, { width: number; height: number }> = {
   day: { width: 310, height: 420 },
 };
 
-export const sizeFor = (m: WindowMode, view: WidgetView = getSettings().widgetView) =>
-  m === 'expanded' ? EXPANDED_SIZE : COMPACT_SIZES[view] ?? COMPACT_SIZES.mascot;
+export const sizeFor = (m: WindowMode, view: WidgetView = getSettings().widgetView, scale: number = getSettings().widgetScale) => {
+  const base = m === 'expanded' ? EXPANDED_SIZE : COMPACT_SIZES[view] ?? COMPACT_SIZES.mascot;
+  return { width: Math.round(base.width * scale), height: Math.round(base.height * scale) };
+};
 
 const MARGIN = 24;
 let win: BrowserWindow | null = null;
@@ -64,6 +66,7 @@ export function createWidgetWindow(): BrowserWindow {
     // Store the top-right anchor so the widget grows towards the screen centre.
     savePosition({ x: b.x + b.width, y: b.y });
   });
+  win.webContents.on('did-finish-load', () => win?.webContents.setZoomFactor(getSettings().widgetScale));
   win.once('ready-to-show', () => win?.showInactive());
   win.on('closed', () => { win = null; });
 
@@ -99,6 +102,7 @@ export function refreshWindowSize() {
 
 function resizeWindow() {
   if (!win) return;
+  win.webContents.setZoomFactor(getSettings().widgetScale);
   const b = win.getBounds();
   const { width, height } = sizeFor(mode);
   const area = screen.getDisplayMatching(b).workArea;

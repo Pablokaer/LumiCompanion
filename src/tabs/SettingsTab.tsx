@@ -21,6 +21,8 @@ const TASK_MODELS: { key: 'modelChat' | 'modelTriage' | 'modelWriting'; label: s
   { key: 'modelWriting', label: 'Writing (answers and email drafts)', hint: 'A larger model writes better text.' },
 ];
 
+const SIZE_OPTIONS = [{ scale: 1, label: 'Normal' }, { scale: 0.85, label: 'Smaller' }, { scale: 0.7, label: 'Small' }, { scale: 0.6, label: 'Tiny' }];
+
 const VIEW_OPTIONS: { id: WidgetView; label: string; hint: string }[] = [
   { id: 'mascot', label: 'Star', hint: 'Just the star in a circle, with reminders and notifications.' },
   { id: 'month', label: 'Month', hint: 'A monthly calendar you can browse, with the selected day below.' },
@@ -75,6 +77,15 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
             ))}
           </div>
           <span className="hint">{VIEW_OPTIONS.find((o) => o.id === settings.widgetView)?.hint} Reminders always appear.</span>
+        </div>
+        <div className="field">
+          <span>Widget size</span>
+          <div className="chips" role="radiogroup" aria-label="Widget size">
+            {SIZE_OPTIONS.map((o) => (
+              <button key={o.scale} role="radio" aria-checked={settings.widgetScale === o.scale} className={`chip${settings.widgetScale === o.scale ? ' on' : ''}`} onClick={() => update({ widgetScale: o.scale })}>{o.label}</button>
+            ))}
+          </div>
+          <span className="hint">Makes the whole widget, and the panel when it is open, smaller.</span>
         </div>
         <Toggle label="Always on top" hint="Off: Lumi lives on your desktop behind other windows and peeks out for reminders." checked={settings.widgetMode === 'onTop'} onChange={(v) => update({ widgetMode: v ? 'onTop' : 'desktop' })} />
         <Toggle label="Start with my computer" checked={settings.launchAtLogin} onChange={(v) => update({ launchAtLogin: v })} />

@@ -85,6 +85,8 @@ export interface Settings {
   mascotName: string;
   widgetMode: WidgetMode;
   widgetView: WidgetView;
+  /** Size of the whole widget window and its contents, from 0.6 to 1 (1 = normal). */
+  widgetScale: number;
   skin: Skin;
   /** The colour used when `skin` is 'custom', as "#rrggbb". */
   customColor: string;
