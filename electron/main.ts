@@ -21,6 +21,7 @@ import { DndService } from './services/dnd';
 import { FocusService, shouldHoldReminder } from './services/focus';
 import { SyncService } from './services/sync';
 import { WeatherService } from './services/weather';
+import { startPerfLog } from './perf';
 import { QuickCapture } from './quickCapture';
 import { RELEASES_PAGE, UpdateService } from './updater';
 import { LANGUAGE_NAMES, transcribe } from './voice/transcribe';
@@ -59,6 +60,8 @@ const quick = new QuickCapture();
 /** Reminders that came due while she was asked to be quiet; shown when the quiet ends. */
 let heldReminders: ReminderPayload[] = [];
 let hiddenByDnd = false;
+/** The screen is locked or the computer is asleep. */
+let screenLocked = false;
 
 /** Shows a system notification, unless notifications are off or do-not-disturb is on. Returns whether it was shown. */
 function notify(title: string, body: string, onClick?: () => void): boolean {
@@ -133,8 +136,9 @@ async function bootstrap() {
     } catch { callback({}); }
   }, { useSystemPicker: false });
 
+  startPerfLog(); // LUMI_PERF=1: CPU use per process every 5 s
   registerIpc();
-  createWidgetWindow();
+  const widget = createWidgetWindow();
   createTray(() => { applySystemSettings(); send('settings:changed'); }, { state: () => dnd.state, set: (ms) => dnd.setManual(ms) });
   applySystemSettings();
 
@@ -211,6 +215,19 @@ async function bootstrap() {
 
   // ---- quick capture shortcut ----
   quick.apply(getSettings().quickCapture, getSettings().quickCaptureShortcut);
+
+  // ---- tell the window when nobody can see her, so her animation loop stops ----
+  // (The window keeps running in the background on purpose, so the page cannot tell by itself that it is hidden.)
+  const sendPower = () => send('power', { hidden: !widget.isVisible() || widget.isMinimized() || screenLocked });
+  widget.on('show', sendPower);
+  widget.on('hide', sendPower);
+  widget.on('minimize', sendPower);
+  widget.on('restore', sendPower);
+  const setLocked = (locked: boolean) => () => { screenLocked = locked; sendPower(); };
+  powerMonitor.on('lock-screen', setLocked(true));
+  powerMonitor.on('suspend', setLocked(true));
+  powerMonitor.on('unlock-screen', setLocked(false));
+  powerMonitor.on('resume', setLocked(false));
 
   // ---- system events the star can react to (lock, unlock, sleep, wake, plugging in) ----
   const systemEvent = (kind: string) => () => { if (getSettings().reactToSystem) send('system', { kind }); };

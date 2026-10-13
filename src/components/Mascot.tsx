@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef } from 'react';
 import { resolveSkin, SHAPE_INFO, useAppearance } from '../appearance';
 import type { MascotAction } from '../behavior';
 import { dancePose, type DancePose } from '../dance';
+import { isMock } from '../api';
+import { CURSOR_ACTIVE_MS, FrameGate, isSlowMotion, targetFps, weightsSettled } from '../frameRate';
 import { prefersReducedMotion, useLife } from '../mascotLife';
+import { isHidden, subscribePower } from '../power';
 import { aimTarget, blendPose, easeWeights, initialWeights, poseToCss, smoothAim, type BaseMotion } from '../motion';
 import { beatPhase } from '../music/beat';
 import { beatClock } from '../music/listener';
@@ -65,8 +68,13 @@ export function Mascot({ mood = 'idle', size = 140, onClick, title }: Props) {
   const armL = useRef<SVGGElement>(null);
   const armR = useRef<SVGGElement>(null);
 
+  // What the frame-rate controller needs to know, kept in a ref so the loop reads it without re-running.
+  const stateRef = useRef({ sleeping, dancing, acting: action !== 'none', reacting: reaction !== 'none', expanded: life.expanded });
+  stateRef.current = { sleeping, dancing, acting: action !== 'none', reacting: reaction !== 'none', expanded: life.expanded };
+
   // One loop poses the whole body: floating, breathing, bouncing, shaking and dancing are blended with
   // weights that glide toward the current state, so every change of state is a smooth crossfade.
+  // It draws as often as the star needs (see frameRate.ts) and not at all while nobody can see her.
   useEffect(() => {
     const body = bodyRef.current;
     if (!smooth || !body) return;
@@ -75,6 +83,8 @@ export function Mascot({ mood = 'idle', size = 140, onClick, title }: Props) {
     let armsShown = false;
     let last = performance.now();
     let raf = 0;
+    let running = false;
+    const gate = new FrameGate();
     const gaze = new GazeController();
     const aim = { x: 0, y: 0 };
     const blink = new BlinkController();
@@ -82,18 +92,61 @@ export function Mascot({ mood = 'idle', size = 140, onClick, title }: Props) {
     const pupils = svg ? [...svg.querySelectorAll<SVGGElement>('.pupil')] : [];
     const eyes = svg ? [...svg.querySelectorAll<SVGGElement>('.mascot-eyes')] : [];
 
+    // Her centre in window coordinates, measured when the layout changes instead of on every frame
+    // (asking for it forces the browser to lay the page out again). The cursor position from the main
+    // process is relative to the window, so a cached centre gives the same answer.
+    const centre = { x: 0, y: 0, ok: false, at: 0 };
+    const measure = () => {
+      if (!svg) return;
+      const b = svg.getBoundingClientRect();
+      centre.x = b.left + b.width / 2;
+      centre.y = b.top + b.height * 0.54;
+      centre.ok = true;
+      centre.at = performance.now();
+    };
+    measure();
+    const resizeObserver = svg && typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : undefined;
+    if (svg) resizeObserver?.observe(svg);
+    window.addEventListener('resize', measure);
+
+    // Only touch the DOM when a value really changed.
+    const written = { body: '', lid: '', pupils: pupils.map(() => ''), armL: '', armR: '', opL: '', opR: '', beat: 0 };
+
     const resetArms = () => {
       for (const arm of [armL.current, armR.current]) if (arm) { arm.style.transform = ''; arm.style.opacity = ''; }
+      written.armL = written.armR = written.opL = written.opR = '';
       armsShown = false;
     };
 
-    const frame = (now: number) => {
+    // Browser preview only: ?fps=60 pins the frame rate, to compare it side by side with the automatic one.
+    const forcedFps = isMock ? ([15, 30, 60] as const).find((f) => String(f) === new URLSearchParams(location.search).get('fps')) : undefined;
+
+    let eyesBusy = false; // from the last frame drawn: a blink or a glance is in progress
+    const gazeSeen = { x: 0, y: 0, near: 0 };
+
+    const state = (now: number) => {
+      const s = stateRef.current;
+      return {
+        hidden: false,
+        sleeping: s.sleeping,
+        slowMotion: isSlowMotion(targetRef.current),
+        dancing: s.dancing,
+        reacting: s.reacting,
+        acting: s.acting,
+        easing: !weightsSettled(weights, targetRef.current),
+        followingCursor: lookRef.current.follow && pointer.known && now - pointer.at < CURSOR_ACTIVE_MS,
+        eyesBusy,
+        expanded: s.expanded,
+      };
+    };
+
+    const draw = (now: number) => {
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       easeWeights(weights, targetRef.current, dt);
       if (beatClock.active) {
         clock.originMs = beatClock.originMs; clock.periodSec = beatClock.periodSec; clock.valid = true;
-        svgRef.current?.style.setProperty('--beat', `${clock.periodSec}s`);
+        if (clock.periodSec !== written.beat) { svg?.style.setProperty('--beat', `${clock.periodSec}s`); written.beat = clock.periodSec; }
       }
       let dance: DancePose | undefined;
       if (weights.dance > 1e-3 && clock.valid) {
@@ -101,38 +154,70 @@ export function Mascot({ mood = 'idle', size = 140, onClick, title }: Props) {
         dance = dancePose(phase, count);
       }
       const look = lookRef.current;
-      const box = svg?.getBoundingClientRect();
-      const cursor = box && pointer.known ? { dx: pointer.x - (box.left + box.width / 2), dy: pointer.y - (box.top + box.height * 0.54) } : undefined;
+      if (now - centre.at > 1000) measure(); // a safety net for layout shifts that do not resize her
+      const cursor = centre.ok && pointer.known ? { dx: pointer.x - centre.x, dy: pointer.y - centre.y } : undefined;
       // which way the mouse is, for reactions that lean toward it, away from it, or lunge at it
       smoothAim(aim, cursor ? aimTarget(cursor.dx, cursor.dy) : { x: 0, y: 0 }, dt);
-      body.style.transform = poseToCss(blendPose(weights, now / 1000, dance, { aimX: aim.x, aimY: aim.y, since: (now - reactionStart.current) / 1000 }));
+      const css = poseToCss(blendPose(weights, now / 1000, dance, { aimX: aim.x, aimY: aim.y, since: (now - reactionStart.current) / 1000 }));
+      if (css !== written.body) { body.style.transform = css; written.body = css; }
 
       // eyes: follow the mouse or wander, widen when it is close, and blink at random
       const mode = look.reaction === 'shy' ? 'avert' : look.reaction === 'bite' ? 'lock' : undefined;
       const g = gaze.update(dt, now, { cursor, cursorIdleMs: now - pointer.at, follow: look.follow, alert: look.alert, mode });
-      const lid = `scaleY(${(1 - 0.94 * blink.update(now)).toFixed(3)})`;
-      for (const p of pupils) {
+      const closed = blink.update(now);
+      const lid = `scaleY(${(1 - 0.94 * closed).toFixed(3)})`;
+      pupils.forEach((p, i) => {
         const v = p.dataset.variant;
         const x = v === 'thinking' ? 2.5 + g.x * 0.4 : v === 'alert' ? g.x * 0.3 : g.x;
         const y = v === 'thinking' ? -4 + g.y * 0.3 : v === 'alert' ? g.y * 0.3 : g.y;
-        const s = v === 'alert' ? 0.85 : 1 + 0.14 * g.near;
-        p.style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) scale(${s.toFixed(3)})`;
-      }
-      for (const e of eyes) e.style.transform = lid;
+        const sc = v === 'alert' ? 0.85 : 1 + 0.14 * g.near;
+        const t = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) scale(${sc.toFixed(3)})`;
+        if (t !== written.pupils[i]) { p.style.transform = t; written.pupils[i] = t; }
+      });
+      if (lid !== written.lid) { for (const e of eyes) e.style.transform = lid; written.lid = lid; }
+      eyesBusy = closed > 0 || Math.abs(g.x - gazeSeen.x) + Math.abs(g.y - gazeSeen.y) > 0.01 || Math.abs(g.near - gazeSeen.near) > 0.003;
+      gazeSeen.x = g.x; gazeSeen.y = g.y; gazeSeen.near = g.near;
 
       const w = weights.dance;
       if (dance && w > 0.01) {
-        if (armL.current) { armL.current.style.transform = `rotate(${dance.armL * w}deg)`; armL.current.style.opacity = String(Math.min(1, w * 3)); }
-        if (armR.current) { armR.current.style.transform = `rotate(${-dance.armR * w}deg)`; armR.current.style.opacity = String(Math.min(1, w * 3)); }
+        const opacity = String(Math.min(1, w * 3));
+        const tl = `rotate(${dance.armL * w}deg)`;
+        const tr = `rotate(${-dance.armR * w}deg)`;
+        if (armL.current) {
+          if (tl !== written.armL) { armL.current.style.transform = tl; written.armL = tl; }
+          if (opacity !== written.opL) { armL.current.style.opacity = opacity; written.opL = opacity; }
+        }
+        if (armR.current) {
+          if (tr !== written.armR) { armR.current.style.transform = tr; written.armR = tr; }
+          if (opacity !== written.opR) { armR.current.style.opacity = opacity; written.opR = opacity; }
+        }
         armsShown = true;
       } else if (armsShown) {
         resetArms();
       }
+    };
+
+    const frame = (now: number) => {
+      if (isHidden()) { running = false; raf = 0; return; } // paused: wake() starts it again
+      raf = requestAnimationFrame(frame);
+      if (gate.shouldDraw(now, forcedFps ?? targetFps(state(now)))) draw(now);
+    };
+    const wake = () => {
+      if (running || isHidden()) return;
+      running = true;
+      last = performance.now(); // the first dt after a pause must not be the length of the pause
+      gate.reset(last);
       raf = requestAnimationFrame(frame);
     };
-    raf = requestAnimationFrame(frame);
+    wake();
+    document.addEventListener('visibilitychange', wake);
+    const unsubscribePower = subscribePower(wake);
     return () => {
       cancelAnimationFrame(raf);
+      document.removeEventListener('visibilitychange', wake);
+      unsubscribePower();
+      window.removeEventListener('resize', measure);
+      resizeObserver?.disconnect();
       body.style.transform = '';
       resetArms();
       for (const p of pupils) p.style.transform = '';

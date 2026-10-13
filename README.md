@@ -97,6 +97,16 @@ If Ollama is off, Calendar, Gmail, reminders and the heuristic email ranking sti
 
 Browser preview (`npm run preview:ui`) extras: `?gallery=1` shows every shape and accessory (add `&skin=sunset` or `&mood=happy`), `?shape=planet&acc=wizard,sunglasses` previews a look, `?skin=custom&color=22c55e` a custom colour, `?update=ready|available|downloading|error` the update banner and card, and for inspecting the animations: `?sleep=1` (start asleep), `?mouse=200,60` (pin the cursor position the eyes look at), `?reaction=giggle|shy|purr|bite` (pin a mouse reaction), `?music=1` (fake 120 BPM music) and `?action=wave` (pin one action: `smile`, `hop`, `look`, `wave`, `spin`, `wiggle`, `stretch`, `twinkle`, `hum`, `peek`, `cheer`, `wake`). Also: `?dnd=fullscreen|meeting|manual` (quiet mode), `?weather=rain|snow|hot|cold|fog|thunder|clear|night|off` and `?lat=-23` (weather and hemisphere), `?today=2026-12-24` (pretend it is another date, for seasonal looks), `?system=lock-screen|unlock-screen|suspend|resume|on-ac|on-battery` (a system reaction) and `#quick` for the quick-capture window.
 
+## Performance and battery
+
+Lumi is meant to be light on a laptop. The details are in the sections below; this is how to check them.
+
+**Measuring.** Start the app with `LUMI_PERF=1` (for example `LUMI_PERF=1 npm run dev`, or `$env:LUMI_PERF=1` in PowerShell) and it prints the CPU use of the window (renderer), the GPU process and the main process every 5 seconds, in percent of one core. It is a development aid and does nothing otherwise. `npx electron scripts/perf-measure.cjs` (with `npm run preview:ui` running) measures the widget in five situations (idle, covered, asleep, dancing, panel open) and prints a table; `MAC_LIKE=1` makes it use the macOS window policy.
+
+**Animation frame rate.** The mascot's loop draws only as often as she needs: 60 fps while dancing, reacting, doing an action, following the cursor, easing between states or with the panel open; 30 fps while she floats quietly; 15 fps while asleep; and not at all while the window is hidden, minimised or the screen is locked. Speed never depends on the frame rate, so the motion looks the same. Her position is measured once (and when the layout changes) instead of on every frame, DOM styles are only written when a value changed, and the reaction timer stops while nobody can see her.
+
+**Checking that the look did not change.** With `npm run preview:ui` running, `npx electron scripts/visual-shots.cjs capture tests/visual-baseline` takes reference screenshots of every mood, action, reaction, dance pose and view (with a fake clock, so they are repeatable), and `... compare tests/visual-baseline tests/visual-after` lists every pixel difference with its bounding box. The speech-bubble text and a few labels change from run to run; the star itself must not.
+
 ## Custom colour
 
 Settings → Appearance → Colour → **Custom** opens a Photoshop-style picker that covers the whole RGB range:
@@ -149,7 +159,7 @@ Limitations: a small local model can still write weak or wrong prose, and OpenAl
 ### Do not disturb
 Lumi goes quiet by itself, and you can ask her to. While quiet she shows no reminder pop-ups, no notifications, no tips and no dancing or random actions; her speech bubble just says "Quiet mode". Reminders that come due are **held and shown as one "While you were busy" summary** when the quiet ends.
 
-- **Full-screen apps** (games, videos, presentations): detected on **Windows only**, through the system's "user notification state". Optionally the widget also hides itself while a full-screen app is open. On macOS and Linux this detection is not available, so use the manual pause or meetings. It calls the Windows API in-process through `koffi`, so Lumi never starts PowerShell or any console window.
+- **Full-screen apps** (games, videos, presentations): detected on **Windows only**, through the system's "user notification state". Optionally the widget also hides itself while a full-screen app is open. On macOS and Linux this detection is not available, so use the manual pause or meetings. It calls the Windows API in-process through `koffi`, so Lumi never starts PowerShell or any console window. A test (`tests/noConsoleWindows.test.ts`) fails the build if the app ever starts PowerShell/cmd or a process without `windowsHide`, and only one `ollama serve` is ever started at a time.
 - **Meetings:** quiet while a calendar event with a start time is running (off by default).
 - **Manual pause:** tray menu → "Do not disturb" (1 hour, until tomorrow morning, or off), or Settings → Do not disturb.
 

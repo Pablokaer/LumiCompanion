@@ -4,6 +4,7 @@ import { nextDelayMs, pickAction, sleepThresholdSeconds, WAKE_MS, type MascotAct
 import type { NoticeAction, NoticeTone } from '../shared/notices';
 import { InteractionController, type Reaction } from './interaction';
 import { beatClock, MusicListener, type MusicSnapshot } from './music/listener';
+import { isHidden, subscribePower } from './power';
 
 declare global {
   interface Window { __lumiMusicStart?: () => Promise<void> }
@@ -19,6 +20,8 @@ export interface LifeState {
   followMouse: boolean;
   /** Do not disturb or low battery: calm and still. */
   quiet: boolean;
+  /** The full panel is open (she keeps her full frame rate). */
+  expanded: boolean;
   /** How she feels about the notice she is showing, if any. */
   noticeTone?: NoticeTone;
   /** How she is reacting to the mouse passing over her (laugh, blush, purr, bite). */
@@ -35,7 +38,7 @@ export interface LifeState {
 const NO_INTERACTION = { enter() {}, leave() {}, move() {} };
 
 export const IDLE_LIFE: LifeState = {
-  action: 'none', actionKey: 0, sleeping: false, dancing: false, followMouse: true, quiet: false, reaction: 'none', reactionKey: 0, reactionLine: '',
+  action: 'none', actionKey: 0, sleeping: false, dancing: false, followMouse: true, quiet: false, expanded: false, reaction: 'none', reactionKey: 0, reactionLine: '',
   interact: NO_INTERACTION, bpm: 0, musicStatus: 'off',
 };
 
@@ -89,6 +92,8 @@ interface LifeInput {
   petReactions: boolean;
   /** Do not disturb or low battery. */
   quiet?: boolean;
+  /** The full panel is open. */
+  expanded?: boolean;
   /** A notice she is currently showing: its tone and the action it asks for. */
   notice?: { tone: NoticeTone; action: NoticeAction };
   /** Something important is going on (reminder, chat, focus): stay calm. */
@@ -96,7 +101,7 @@ interface LifeInput {
 }
 
 /** Decides what the star is doing: dancing, sleeping, waking up, or a random little action. */
-export function useMascotLife({ lively, sleepAfterMinutes, idleSeconds, music, reactToMusic, followMouse, petReactions, calm: busy, quiet = false, notice }: LifeInput): LifeState {
+export function useMascotLife({ lively, sleepAfterMinutes, idleSeconds, music, reactToMusic, followMouse, petReactions, calm: busy, quiet = false, expanded = false, notice }: LifeInput): LifeState {
   const calm = busy || quiet;
   const reduced = useMemo(prefersReducedMotion, []);
   const dancing = reactToMusic && music.playing && !quiet;
@@ -152,14 +157,28 @@ export function useMascotLife({ lively, sleepAfterMinutes, idleSeconds, music, r
   const reactable = lively && petReactions && !sleeping && !forcedReaction;
   const reactableRef = useRef(reactable);
   reactableRef.current = reactable;
+  // The controller only needs a tick while the pointer is on her or a reaction is playing, and not at all
+  // while nobody can see her (a reaction that ends meanwhile is settled by the first tick after she is seen).
+  const ticker = useRef({ start() {} });
   const interact = useMemo(() => ({
-    enter: () => { if (reactableRef.current && ctl.enter(performance.now())) sync(); },
+    enter: () => { if (reactableRef.current && ctl.enter(performance.now())) sync(); ticker.current.start(); },
     leave: () => { ctl.leave(performance.now()); },
     move: (x: number, y: number) => { if (reactableRef.current && ctl.move(performance.now(), x, y)) sync(); },
   }), [ctl, sync]);
   useEffect(() => {
-    const timer = window.setInterval(() => { if (ctl.tick(performance.now())) sync(); }, 100);
-    return () => window.clearInterval(timer);
+    let timer = 0;
+    const wanted = () => ctl.needsTick && (reactableRef.current || ctl.reaction !== 'none'); // asleep: nothing to tick
+    const stop = () => { window.clearInterval(timer); timer = 0; };
+    const tick = () => {
+      if (isHidden()) { stop(); return; }
+      if (ctl.tick(performance.now())) sync();
+      if (!wanted()) stop();
+    };
+    const start = () => { if (!timer && wanted() && !isHidden()) timer = window.setInterval(tick, 100); };
+    ticker.current.start = start;
+    const offPower = subscribePower(start);
+    document.addEventListener('visibilitychange', start);
+    return () => { stop(); offPower(); document.removeEventListener('visibilitychange', start); ticker.current.start = () => {}; };
   }, [ctl, sync]);
   useEffect(() => { if (!reactable && ctl.reset()) sync(); }, [reactable, ctl, sync]);
 
@@ -173,6 +192,7 @@ export function useMascotLife({ lively, sleepAfterMinutes, idleSeconds, music, r
     dancing,
     followMouse,
     quiet,
+    expanded,
     noticeTone: notice?.tone,
     reaction: forcedReaction ?? reactionState.reaction,
     reactionKey: reactionState.key,
