@@ -6,7 +6,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { promisify } from 'node:util';
 import type { OllamaSetupState } from '../../shared/types';
-import { ensureOllama, isLocalUrl, ollamaCandidates, ollamaStatus } from './ollama';
+import { ensureOllama, isLocalUrl, lumiOllamaDir, ollamaCandidates, ollamaStatus } from './ollama';
 
 const run = promisify(execFile);
 
@@ -16,10 +16,18 @@ const run = promisify(execFile);
  * rights, so Lumi explains the one command to run instead.
  */
 
+/**
+ * Windows uses the standalone build (a plain zip with ollama.exe): the official installer also adds Ollama's tray app,
+ * which starts with Windows and shows its own windows and notifications. Lumi only needs the server.
+ */
 export const INSTALLERS = {
-  win32: { url: 'https://ollama.com/download/OllamaSetup.exe', file: 'OllamaSetup.exe' },
+  win32: { url: windowsZipUrl(), file: 'ollama-windows.zip' },
   darwin: { url: 'https://ollama.com/download/Ollama-darwin.zip', file: 'Ollama-darwin.zip' },
 } as const;
+
+function windowsZipUrl(arch = process.arch): string {
+  return `https://github.com/ollama/ollama/releases/latest/download/ollama-windows-${arch === 'arm64' ? 'arm64' : 'amd64'}.zip`;
+}
 
 export const LINUX_HINT = 'On Linux, install Ollama with:  curl -fsSL https://ollama.com/install.sh | sh  (it needs administrator rights), then reopen Lumi.';
 
@@ -116,12 +124,16 @@ export class OllamaSetup extends EventEmitter {
       await download(url, dest, (percent) => this.set({ status: 'downloading', percent, message: 'Downloading Ollama' }));
       this.set({ status: 'installing', message: 'Installing Ollama' });
       if (platform === 'win32') {
-        // Per-user install, no administrator rights, no windows.
+        // Unpack into Lumi's own folder: no installer, no administrator rights, no tray app, no windows.
+        const target = lumiOllamaDir();
+        fs.mkdirSync(target, { recursive: true });
         await new Promise<void>((resolve, reject) => {
-          const child = spawn(dest, ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'], { stdio: 'ignore', windowsHide: true });
+          const tar = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe');
+          const child = spawn(tar, ['-xf', dest, '-C', target], { stdio: 'ignore', windowsHide: true });
           child.once('error', reject);
-          child.once('exit', (code) => (code === 0 ? resolve() : reject(new Error(`The Ollama installer stopped with code ${code}.`))));
+          child.once('exit', (code) => (code === 0 ? resolve() : reject(new Error(`Unpacking Ollama failed (code ${code}).`))));
         });
+        if (!fs.existsSync(path.join(target, 'ollama.exe'))) throw new Error('The Ollama download did not contain ollama.exe.');
       } else {
         const apps = writable('/Applications') ? '/Applications' : path.join(os.homedir(), 'Applications');
         fs.mkdirSync(apps, { recursive: true });

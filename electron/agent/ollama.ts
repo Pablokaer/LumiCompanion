@@ -81,10 +81,15 @@ export function isLocalUrl(baseUrl: string): boolean {
   try { return ['localhost', '127.0.0.1', '[::1]'].includes(new URL(baseUrl).hostname); } catch { return false; }
 }
 
+/** Where Lumi unpacks its own copy of Ollama on Windows (the standalone build: no tray app, no autostart, no windows). */
+export function lumiOllamaDir(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(env.LOCALAPPDATA ?? '', 'Lumi', 'ollama');
+}
+
 /** Likely locations of the Ollama executable, in order. The bare name relies on PATH. */
 export function ollamaCandidates(platform = process.platform, env: NodeJS.ProcessEnv = process.env): string[] {
   if (platform === 'win32') {
-    return [path.join(env.LOCALAPPDATA ?? '', 'Programs', 'Ollama', 'ollama.exe'), 'ollama.exe'];
+    return [path.join(lumiOllamaDir(env), 'ollama.exe'), path.join(env.LOCALAPPDATA ?? '', 'Programs', 'Ollama', 'ollama.exe'), 'ollama.exe'];
   }
   if (platform === 'darwin') return ['/Applications/Ollama.app/Contents/Resources/ollama', path.join(env.HOME ?? '', 'Applications', 'Ollama.app', 'Contents', 'Resources', 'ollama'), '/opt/homebrew/bin/ollama', '/usr/local/bin/ollama', 'ollama'];
   return ['/usr/local/bin/ollama', '/usr/bin/ollama', 'ollama'];

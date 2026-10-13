@@ -38,8 +38,10 @@ describe('ollama auto-start', () => {
     expect(isLocalUrl('not a url')).toBe(false);
   });
 
-  it('looks in the per-user install folder first on Windows', () => {
-    expect(ollamaCandidates('win32', { LOCALAPPDATA: 'C:\\Users\\me\\AppData\\Local' } as NodeJS.ProcessEnv)[0]).toContain('Programs');
+  it('looks in Lumi\'s own folder, then the per-user install folder, on Windows', () => {
+    const c = ollamaCandidates('win32', { LOCALAPPDATA: 'C:\\Users\\me\\AppData\\Local' } as NodeJS.ProcessEnv);
+    expect(c[0]).toContain('Lumi');
+    expect(c[1]).toContain('Programs');
     expect(ollamaCandidates('darwin').at(-1)).toBe('ollama');
   });
 
