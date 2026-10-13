@@ -10,11 +10,33 @@ const cleanError = (e: unknown) => (e as Error).message.replace(/^Error invoking
 
 type Panel = { id: string; kind: 'reply' | 'event' };
 
+const LEVELS: ImportanceLevel[] = ['high', 'medium', 'low'];
+const FILTER_KEY = 'lumi.inbox.levels';
+
+/** The levels shown last time (default: Supernova and Bright). */
+function loadLevels(): ImportanceLevel[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FILTER_KEY) ?? 'null') as ImportanceLevel[] | null;
+    if (Array.isArray(saved) && saved.length && saved.every((l) => LEVELS.includes(l))) return saved;
+  } catch { /* no storage */ }
+  return ['high', 'medium'];
+}
+
 export function InboxTab({ emails, now }: { emails: ScoredEmail[]; now: Date }) {
-  const [showAll, setShowAll] = useState(false);
+  const [levels, setLevels] = useState<ImportanceLevel[]>(loadLevels);
   const [panel, setPanel] = useState<Panel>();
+  const count = (l: ImportanceLevel) => emails.filter((e) => e.level === l).length;
   const important = emails.filter((e) => e.level !== 'low');
-  const list = showAll ? emails : important;
+  const list = emails.filter((e) => levels.includes(e.level));
+
+  const choose = (next: ImportanceLevel[]) => {
+    // Never an empty selection: showing nothing at all is never what anyone wants.
+    const value = next.length ? next : LEVELS;
+    setLevels(value);
+    try { localStorage.setItem(FILTER_KEY, JSON.stringify(value)); } catch { /* no storage */ }
+  };
+  const toggleLevel = (l: ImportanceLevel) => choose(levels.includes(l) ? levels.filter((x) => x !== l) : [...levels, l]);
+  const all = levels.length === LEVELS.length;
 
   const toggle = (id: string, kind: Panel['kind']) =>
     setPanel((p) => (p?.id === id && p.kind === kind ? undefined : { id, kind }));
@@ -26,10 +48,13 @@ export function InboxTab({ emails, now }: { emails: ScoredEmail[]; now: Date }) 
         <p>{important.length ? `${important.length} worth your attention, ranked by importance.` : 'Nothing urgent in your inbox right now ✦'}</p>
       </section>
 
-      <div className="legend">
-        <span><i className="lv high" />Supernova</span>
-        <span><i className="lv medium" />Bright</span>
-        <span><i className="lv low" />Faint</span>
+      <div className="chips inbox-filter" role="group" aria-label="Filter by importance">
+        <button className={`chip small${all ? ' on' : ''}`} aria-pressed={all} onClick={() => choose(LEVELS)}>All · {emails.length}</button>
+        {LEVELS.map((l) => (
+          <button key={l} className={`chip small${!all && levels.includes(l) ? ' on' : ''}`} aria-pressed={!all && levels.includes(l)} onClick={() => (all ? choose([l]) : toggleLevel(l))}>
+            <i className={`lv ${l}`} />{LEVEL_LABEL[l]} · {count(l)}
+          </button>
+        ))}
       </div>
 
       <ul className="email-list">
@@ -57,11 +82,7 @@ export function InboxTab({ emails, now }: { emails: ScoredEmail[]; now: Date }) 
           </li>
         ))}
       </ul>
-      {emails.length > important.length && (
-        <button className="link-btn" onClick={() => setShowAll((s) => !s)}>
-          {showAll ? 'Show only important' : `Show ${emails.length - important.length} faint emails too`}
-        </button>
-      )}
+      {!list.length && <p className="hint">{emails.length ? 'No emails at this level.' : 'No emails to show.'}</p>}
     </div>
   );
 }

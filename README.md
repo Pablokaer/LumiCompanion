@@ -180,6 +180,7 @@ Occasional, kind nudges: drink water, stretch, rest your eyes, check your postur
 | Speak a message | Chat → microphone button |
 | Start a focus session | Today tab → Focus session |
 | Add an event on a day | Calendar tab → select a day → Add event (or double-click the day) |
+| Filter emails by importance | Inbox → the Supernova / Bright / Faint buttons (combine them, or pick All). Your choice is remembered |
 | Draft a reply / make an event from an email | Inbox → buttons under each email |
 | Change her shape, colour or accessories | Settings → Appearance |
 | Turn off random actions, sleeping or dancing | Settings → Life |
