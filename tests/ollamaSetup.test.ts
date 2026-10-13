@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ollamaCandidates } from '../electron/agent/ollama';
 import { friendlySetupError, INSTALLERS, isOllamaInstalled, LINUX_HINT, OllamaSetup, parsePullLine } from '../electron/agent/ollamaSetup';
 
 afterEach(() => vi.restoreAllMocks());
@@ -14,8 +15,15 @@ describe('ollama setup helpers', () => {
   it('never shows 100% before the model is really done', () => {
     expect(parsePullLine('{"total":100,"completed":100}')?.percent).toBe(99);
   });
-  it('downloads only from ollama.com', () => {
-    for (const i of Object.values(INSTALLERS)) expect(new URL(i.url).hostname).toBe('ollama.com');
+  it("downloads only from ollama.com or Ollama's own GitHub releases", () => {
+    for (const i of Object.values(INSTALLERS)) {
+      const u = new URL(i.url);
+      expect(u.hostname === 'ollama.com' || (u.hostname === 'github.com' && u.pathname.startsWith('/ollama/ollama/releases/'))).toBe(true);
+    }
+  });
+  it('uses the standalone Windows build, not the installer that adds the tray app', () => {
+    expect(INSTALLERS.win32.url).toMatch(/ollama-windows-(amd64|arm64)\.zip$/);
+    expect(ollamaCandidates('win32', { LOCALAPPDATA: 'C:\\L' } as NodeJS.ProcessEnv)[0]).toMatch(/Lumi.ollama.ollama\.exe$/);
   });
   it('detects an installed Ollama from the candidate paths', () => {
     expect(isOllamaInstalled('win32', { LOCALAPPDATA: 'C:\nowhere', PATH: '' } as NodeJS.ProcessEnv)).toBe(false);
