@@ -237,11 +237,12 @@ Installed copies of Lumi look for new versions on their own: shortly after start
 |---|---|
 | **Windows** | The new installer downloads in the background, its SHA-512 is checked against `latest.yml`, and it installs when you click "Restart to update" (or the next time you quit Lumi). |
 | **Linux AppImage** | Same as Windows. |
-| **macOS** and **Linux .deb** | Lumi tells you a newer version exists and opens the download page. Self-updating on macOS needs an app signed with an Apple Developer ID, and the .deb format does not support it. |
+| **macOS** | Lumi downloads the release `.zip` for your chip (Apple Silicon or Intel) in the background, checks its SHA-512 against `latest-mac.yml`, and when you click "Restart to update" (or quit Lumi) a small script swaps the app in place, signs it ad hoc and opens it again. This works without an Apple Developer ID because the app does it itself instead of using Squirrel.Mac. It needs Lumi to be in a folder you can write to (such as `/Applications` as an admin user); otherwise Lumi just tells you a newer version exists and opens the download page. |
+| **Linux .deb** | Lumi tells you a newer version exists and opens the download page (the .deb format does not support self-updating). |
 
 A banner and a notification appear when an update is ready. A download whose checksum does not match is discarded. Updates are fetched over HTTPS from this repository's GitHub releases, so without code signing you are trusting that repository.
 
-Only versions installed **from a release that already includes the updater** can update themselves. Anyone running the very first release (0.1.0) has to download the new installer once by hand.
+Only versions installed **from a release that already includes the updater** can update themselves (for macOS that is the first release that also publishes the `.zip` files: install that one by hand once). Anyone running the very first release (0.1.0) has to download the new installer once by hand.
 
 For development, the feed can be pointed at a local server with the `LUMI_UPDATE_FEED=http://127.0.0.1:<port>` environment variable (only local addresses are accepted).
 
@@ -258,7 +259,8 @@ electron/              Main process (Node)
   docs/                assignment.ts (answer pipeline), extract.ts (docx/pdf/txt), sources.ts (OpenAlex + citations), googleDocs.ts
   agent/               ollama.ts (HTTP client, auto-start, per-task models), agent.ts (tool-calling loop + email triage), mailTools.ts (draft replies, email → event)
   voice/               transcribe.ts (local Whisper speech-to-text)
-  updater.ts           Update service: electron-updater for Windows/AppImage, release-page check elsewhere
+  updater.ts           Update service: electron-updater for Windows/AppImage, macUpdate.ts for macOS, release-page check elsewhere
+  macUpdate.ts         macOS self-update: feed parsing, verified download, in-place swap script
   services/            sync.ts (polling), reminders.ts, emailScoring.ts, time.ts, briefing.ts, focus.ts, dnd.ts (do-not-disturb + Windows full-screen probe), weather.ts (Open-Meteo + location)
   quickCapture.ts      Global shortcut and the small quick-capture window
 shared/types.ts        Types shared by main + renderer

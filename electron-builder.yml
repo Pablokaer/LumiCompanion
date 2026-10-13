@@ -44,7 +44,8 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
 mac:
-  target: dmg
+  # The .zip is what installed copies download to update themselves (the .dmg is for the first install).
+  target: [dmg, zip]
   icon: build/icon.png
   category: public.app-category.productivity
   # Ad-hoc signature: Apple Silicon refuses to run completely unsigned apps. Not a developer ID, so Gatekeeper still warns.

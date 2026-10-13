@@ -135,6 +135,7 @@ jobs:
           path: |
             release/*.exe
             release/*.dmg
+            release/*.zip
             release/*.AppImage
             release/*.deb
             release/*.blockmap
@@ -166,7 +167,7 @@ jobs:
             --title "Lumi $VERSION" \
             --latest \
             --generate-notes \
-            --notes "Installed copies of Lumi update themselves (Windows and Linux AppImage); on macOS and the .deb, Lumi tells you a new version is out. Builds are unsigned: Windows shows a SmartScreen warning (More info > Run anyway) and macOS needs right-click > Open. Lumi also needs Ollama installed locally."
+            --notes "Installed copies of Lumi update themselves from inside the app (Windows, macOS and Linux AppImage); the .deb only tells you a new version is out. Builds are unsigned: Windows shows a SmartScreen warning (More info > Run anyway) and macOS needs right-click > Open. Lumi also needs Ollama installed locally."
 
       - name: Delete old releases
         env:

@@ -33,7 +33,7 @@ describe('how each install updates', () => {
     expect(updateStrategy('win32', {})).toBe('auto');
     expect(updateStrategy('linux', { APPIMAGE: '/tmp/Lumi.AppImage' })).toBe('auto');
     expect(updateStrategy('linux', {})).toBe('notify'); // .deb
-    expect(updateStrategy('darwin', {})).toBe('notify'); // needs a signed app
+    expect(updateStrategy('darwin', {})).toBe('mac'); // Lumi swaps the app itself (no developer certificate needed)
   });
 
   it('only ever redirects the feed to this computer (a test hook)', () => {

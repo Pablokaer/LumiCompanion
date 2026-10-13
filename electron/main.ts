@@ -415,6 +415,6 @@ function registerIpc() {
   });
 }
 
-app.on('will-quit', () => { if (!getSettings().keepSignedIn) clearTokens(); dnd.stop(); weather.stop(); quick.dispose(); globalShortcut.unregisterAll(); });
+app.on('will-quit', () => { updates.applyOnQuit(); if (!getSettings().keepSignedIn) clearTokens(); dnd.stop(); weather.stop(); quick.dispose(); globalShortcut.unregisterAll(); });
 // Keep running in the tray when the window is closed.
 app.on('window-all-closed', () => { /* stay alive */ });
