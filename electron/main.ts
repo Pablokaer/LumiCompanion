@@ -21,6 +21,7 @@ import { DndService } from './services/dnd';
 import { FocusService, shouldHoldReminder } from './services/focus';
 import { SyncService } from './services/sync';
 import { WeatherService } from './services/weather';
+import { startPerfLog } from './perf';
 import { QuickCapture } from './quickCapture';
 import { RELEASES_PAGE, UpdateService } from './updater';
 import { LANGUAGE_NAMES, transcribe } from './voice/transcribe';
@@ -133,6 +134,7 @@ async function bootstrap() {
     } catch { callback({}); }
   }, { useSystemPicker: false });
 
+  startPerfLog(); // LUMI_PERF=1: CPU use per process every 5 s
   registerIpc();
   createWidgetWindow();
   createTray(() => { applySystemSettings(); send('settings:changed'); }, { state: () => dnd.state, set: (ms) => dnd.setManual(ms) });
