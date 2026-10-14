@@ -1,4 +1,4 @@
-import { BrowserWindow, screen } from 'electron';
+import { BrowserWindow, Menu, screen } from 'electron';
 import path from 'node:path';
 import type { WidgetMode, WidgetView, WindowMode } from '../shared/types';
 import { getSavedPosition, getSettings, savePosition } from './store';
@@ -10,7 +10,13 @@ const COMPACT_SIZES: Record<WidgetView, { width: number; height: number }> = {
   day: { width: 310, height: 420 },
 };
 
-export const sizeFor = (m: WindowMode, view: WidgetView = getSettings().widgetView, scale: number = getSettings().widgetScale) => {
+/** The size factor for a mode: `widgetScale` while shrunk to the widget, `panelScale` while the panel is open. */
+export const scaleFor = (m: WindowMode, s: { widgetScale: number; panelScale: number } = getSettings()) => (m === 'expanded' ? s.panelScale : s.widgetScale) || 1;
+
+/** The scale currently applied to the window, for mapping screen pixels to page pixels. */
+export const currentScale = () => scaleFor(mode);
+
+export const sizeFor = (m: WindowMode, view: WidgetView = getSettings().widgetView, scale: number = scaleFor(m)) => {
   const base = m === 'expanded' ? EXPANDED_SIZE : COMPACT_SIZES[view] ?? COMPACT_SIZES.mascot;
   return { width: Math.round(base.width * scale), height: Math.round(base.height * scale) };
 };
@@ -66,8 +72,15 @@ export function createWidgetWindow(): BrowserWindow {
     // Store the top-right anchor so the widget grows towards the screen centre.
     savePosition({ x: b.x + b.width, y: b.y });
   });
-  win.webContents.on('did-finish-load', () => win?.webContents.setZoomFactor(getSettings().widgetScale));
-  win.once('ready-to-show', () => win?.showInactive());
+  win.webContents.on('did-finish-load', () => win?.webContents.setZoomFactor(currentScale()));
+  // Right-click on the shrunk widget: a quick way to tuck it away in the tray.
+  win.webContents.on('context-menu', () => {
+    if (!win || mode !== 'compact') return;
+    Menu.buildFromTemplate([
+      { label: 'Minimize to tray', click: () => win?.hide() },
+    ]).popup({ window: win });
+  });
+  win.once('ready-to-show', () => { if (!getSettings().startInTray) win?.showInactive(); });
   win.on('closed', () => { win = null; });
 
   if (process.env.VITE_DEV_SERVER_URL) win.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -102,7 +115,7 @@ export function refreshWindowSize() {
 
 function resizeWindow() {
   if (!win) return;
-  win.webContents.setZoomFactor(getSettings().widgetScale);
+  win.webContents.setZoomFactor(currentScale());
   const b = win.getBounds();
   const { width, height } = sizeFor(mode);
   const area = screen.getDisplayMatching(b).workArea;

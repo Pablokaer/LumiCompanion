@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { clampScale } from '../electron/store';
-import { sizeFor } from '../electron/window';
+import { scaleFor, sizeFor } from '../electron/window';
 
 vi.mock('electron', () => ({ app: {}, safeStorage: {}, shell: {}, BrowserWindow: class {}, screen: {} }));
 
@@ -11,6 +11,11 @@ describe('widget size', () => {
     expect(clampScale(0.85)).toBe(0.85);
     expect(clampScale('big')).toBe(1);
     expect(clampScale(NaN)).toBe(1);
+  });
+  it('uses a separate scale for the shrunk widget and the open panel', () => {
+    const s = { widgetScale: 0.6, panelScale: 1 };
+    expect(scaleFor('compact', s)).toBe(0.6);
+    expect(scaleFor('expanded', s)).toBe(1);
   });
   it('scales the window size', () => {
     expect(sizeFor('compact', 'mascot', 1)).toEqual({ width: 240, height: 300 });

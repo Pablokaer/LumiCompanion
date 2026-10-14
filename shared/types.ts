@@ -85,8 +85,12 @@ export interface Settings {
   mascotName: string;
   widgetMode: WidgetMode;
   widgetView: WidgetView;
-  /** Size of the whole widget window and its contents, from 0.6 to 1 (1 = normal). */
+  /** Size of the shrunken widget window and its contents, from 0.6 to 1 (1 = normal). */
   widgetScale: number;
+  /** Size of the window while the full panel is open, from 0.6 to 1 (1 = normal). */
+  panelScale: number;
+  /** Start hidden in the system tray instead of showing the widget. */
+  startInTray: boolean;
   skin: Skin;
   /** The colour used when `skin` is 'custom', as "#rrggbb". */
   customColor: string;
