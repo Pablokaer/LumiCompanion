@@ -7,6 +7,10 @@ import { applyWidgetMode, getWindow, toggleWindow } from './window';
 
 let tray: Tray | null = null;
 
+/** A downloaded update that is waiting for a restart, offered in the menu. */
+let pendingUpdate: { version: string; install(): void } | undefined;
+export function setPendingUpdate(update: typeof pendingUpdate) { pendingUpdate = update; }
+
 /** What the tray needs to know about, and control, do-not-disturb. */
 export interface DndControls {
   state(): DndState;
@@ -37,6 +41,7 @@ export function rebuildTrayMenu(onSettingsChanged: () => void) {
   };
   tray.setContextMenu(
     Menu.buildFromTemplate([
+      ...(pendingUpdate ? [{ label: `Restart to update to ${pendingUpdate.version}`, click: () => pendingUpdate?.install() }] : []),
       { label: `Show / hide ${s.mascotName}`, accelerator: 'CmdOrCtrl+Shift+L', click: () => toggleWindow() },
       { label: 'Minimize to tray', enabled: !!getWindow()?.isVisible(), click: () => { getWindow()?.hide(); rebuildTrayMenu(onSettingsChanged); } },
       { type: 'separator' },

@@ -25,8 +25,32 @@ export const REPO = { owner: 'Pablokaer', repo: 'LumiCompanion' };
 export const RELEASES_PAGE = `https://github.com/${REPO.owner}/${REPO.repo}/releases/latest`;
 const LATEST_API = `https://api.github.com/repos/${REPO.owner}/${REPO.repo}/releases/latest`;
 
-export const FIRST_CHECK_MS = 20_000;
-export const CHECK_EVERY_MS = 4 * 60 * 60_000;
+export const FIRST_CHECK_MS = 10_000;
+export const CHECK_EVERY_MS = 30 * 60_000;
+/** After a failed background check (no network yet, GitHub busy), try again sooner than the next regular check. */
+export const RETRY_AFTER_FAILURE_MS = 5 * 60_000;
+/** Waking the computer, unlocking it or showing Lumi checks too, but not more often than this. */
+export const MIN_CHECK_GAP_MS = 10 * 60_000;
+/** A ready update restarts Lumi by itself once you have been away from the computer this long. */
+export const AWAY_SECONDS = 10 * 60;
+const RESTART_CHECK_MS = 60_000;
+
+/** Whether a newer version that was just found should be downloaded without waiting for a click. */
+export function shouldAutoDownload(state: Pick<UpdateState, 'status' | 'notifyOnly'>, autoInstall: boolean): boolean {
+  return autoInstall && state.status === 'available' && !state.notifyOnly;
+}
+
+/** Whether a downloaded update should be installed (Lumi restarted) right now: only when nobody is using the computer. */
+export function shouldRestartNow(o: { status: UpdateState['status']; autoInstall: boolean; idleSeconds: number; focusActive: boolean }): boolean {
+  return o.autoInstall && o.status === 'ready' && o.idleSeconds >= AWAY_SECONDS && !o.focusActive;
+}
+
+/** What the app tells the updater about itself, so it can install a ready update while you are away. */
+export interface UpdateHooks {
+  autoInstall(): boolean;
+  idleSeconds(): number;
+  focusActive(): boolean;
+}
 
 export type Strategy = 'auto' | 'mac' | 'notify';
 const FEED_MAC = `https://github.com/${REPO.owner}/${REPO.repo}/releases/latest/download/latest-mac.yml`;
@@ -79,25 +103,58 @@ export class UpdateService extends EventEmitter {
   private downloading = false;
   /** Set when you click Update: restart as soon as the download is ready. */
   private restartWhenReady = false;
+  private enabled: () => boolean = () => false;
+  private hooks?: UpdateHooks;
+  private lastCheckAt = 0;
+  private retry?: NodeJS.Timeout;
+  private started = false;
+  /** What the last checks found out, kept across status changes. */
+  private meta: { checkedAt?: number; lastError?: string } = {};
 
   get current(): UpdateState { return this.state; }
 
-  /** Starts the periodic checks (not in development, where there is nothing installed to replace). */
-  start(enabled: () => boolean) {
+  /**
+   * Starts the periodic checks (not in development, where there is nothing installed to replace). With `hooks`, a new
+   * version also downloads by itself and is installed while you are away.
+   */
+  start(enabled: () => boolean, hooks?: UpdateHooks) {
     if (!app.isPackaged) {
       this.set({ status: 'unsupported', message: 'Updates work in the installed app, not in development.' });
       return;
     }
+    this.enabled = enabled;
+    this.hooks = hooks;
+    this.started = true;
     const tick = () => { if (enabled()) void this.check(false); };
-    this.timers.push(setTimeout(tick, FIRST_CHECK_MS), setInterval(tick, CHECK_EVERY_MS));
+    this.timers.push(setTimeout(tick, FIRST_CHECK_MS), setInterval(tick, CHECK_EVERY_MS), setInterval(() => this.installWhenAway(), RESTART_CHECK_MS));
   }
 
-  stop() { this.timers.forEach(clearTimeout); this.timers = []; }
+  stop() {
+    this.timers.forEach(clearTimeout);
+    this.timers = [];
+    this.started = false;
+    clearTimeout(this.retry);
+    this.retry = undefined;
+  }
+
+  /** Checks now if the last check was a while ago: for when the computer wakes up, unlocks, or Lumi is shown. */
+  async checkSoon(): Promise<void> {
+    if (!app.isPackaged || !this.enabled() || Date.now() - this.lastCheckAt < MIN_CHECK_GAP_MS) return;
+    await this.check(false);
+  }
+
+  /** Restarts into a downloaded update once you are away from the computer (and not in a focus session). */
+  private installWhenAway() {
+    const h = this.hooks;
+    if (!h || !this.enabled()) return;
+    if (shouldRestartNow({ status: this.state.status, autoInstall: h.autoInstall(), idleSeconds: h.idleSeconds(), focusActive: h.focusActive() })) this.install();
+  }
 
   async check(manual: boolean): Promise<UpdateState> {
     if (!app.isPackaged && !isLocalFeed(process.env.LUMI_UPDATE_FEED)) return this.state;
     if (this.checking || this.state.status === 'downloading' || this.state.status === 'ready') return this.state;
     this.checking = true;
+    this.lastCheckAt = Date.now();
     try {
       let strategy = updateStrategy(process.platform, process.env);
       // macOS can only replace itself when the app sits in a folder this user can write to.
@@ -108,13 +165,26 @@ export class UpdateService extends EventEmitter {
       if (strategy === 'notify') await this.checkReleasePage();
       else if (strategy === 'mac') await this.checkMac(bundle!);
       else await this.checkAndDownload();
+      this.meta = { checkedAt: Date.now() };
+      this.state = { ...this.state, checkedAt: this.meta.checkedAt, lastError: undefined }; // keeps the status the check just reached
+      this.emit('state', this.state);
     } catch (e) {
+      this.meta = { ...this.meta, lastError: friendly(e) };
       // A failed background check is not worth bothering anyone about; a manual one is.
       this.set(manual ? { status: 'error', message: friendly(e) } : { status: 'idle' });
+      if (!manual) this.retrySoon();
     } finally {
       this.checking = false;
     }
+    // A new version found in the background starts downloading by itself; the restart waits until you are away.
+    if (this.hooks && shouldAutoDownload(this.state, this.hooks.autoInstall())) void this.download(false);
     return this.state;
+  }
+
+  /** One more try a few minutes after a failed background check, instead of waiting for the next regular one. */
+  private retrySoon() {
+    if (this.retry || !this.started) return;
+    this.retry = setTimeout(() => { this.retry = undefined; if (this.enabled()) void this.check(false); }, RETRY_AFTER_FAILURE_MS);
   }
 
   /** Restarts into the downloaded update. */
@@ -142,12 +212,12 @@ export class UpdateService extends EventEmitter {
     this.set({ status: 'available', version: entry.version });
   }
 
-  /** The "Update" button: downloads the new version inside the app, then restarts into it. */
-  async download(): Promise<UpdateState> {
-    if (this.state.status === 'ready') { this.install(); return this.state; }
+  /** The "Update" button: downloads the new version inside the app, then restarts into it (unless `restart` is false). */
+  async download(restart = true): Promise<UpdateState> {
+    if (this.state.status === 'ready') { if (restart) this.install(); return this.state; }
     if (this.state.status !== 'available' || this.state.notifyOnly || this.downloading) return this.state;
     this.downloading = true;
-    this.restartWhenReady = true;
+    this.restartWhenReady = restart;
     try {
       if (this.macEntry) await this.downloadMac(this.macEntry.entry, this.macEntry.bundle);
       else {
@@ -225,7 +295,7 @@ export class UpdateService extends EventEmitter {
 
   private set(patch: Partial<UpdateState>) {
     // Moving on to a new status clears the fields of the previous one.
-    const base: UpdateState = { status: 'idle', currentVersion: app.getVersion(), notifyOnly: this.state.notifyOnly };
+    const base: UpdateState = { status: 'idle', currentVersion: app.getVersion(), notifyOnly: this.state.notifyOnly, ...this.meta };
     this.state = { ...base, version: patch.status === this.state.status ? this.state.version : undefined, ...patch };
     this.emit('state', this.state);
   }

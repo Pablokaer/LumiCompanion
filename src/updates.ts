@@ -21,7 +21,7 @@ export function describeUpdate(s: UpdateState): string {
     case 'none': return 'You are up to date ✦';
     case 'available': return `Version ${s.version} is available.`;
     case 'downloading': return `Downloading version ${s.version ?? ''}… ${s.percent ?? 0}%`;
-    case 'ready': return `Version ${s.version} is ready — restarting to install.`;
+    case 'ready': return `Version ${s.version} is ready to install.`;
     case 'error': return s.message ?? 'The update check failed.';
     case 'unsupported': return s.message ?? 'Updates are not available here.';
     default: return '';

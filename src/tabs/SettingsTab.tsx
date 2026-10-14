@@ -5,6 +5,7 @@ import { useDnd, useWeather } from '../automation';
 import { ACCESSORY_SLOTS, SLOT_ORDER, toggleAccessory } from '../../shared/appearance';
 import type { Accessory, AuthState, OllamaStatus, Settings, Shape, WidgetView } from '../../shared/types';
 import { api } from '../api';
+import { timeAgo } from '../format';
 import { addSwatch, removeSwatch } from '../../shared/color';
 import { ACCESSORY_LABEL, SHAPE_INFO, SKINS, SLOT_LABEL, type PresetSkin } from '../appearance';
 import { ColorPicker } from '../components/ColorPicker';
@@ -342,8 +343,10 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
 
       <section className="card">
         <h3>Updates</h3>
-        <p className="hint">{update_ ? `Lumi ${update_.currentVersion}` : '…'}</p>
-        <Toggle label="Check for updates automatically" hint="Looks for a new version when Lumi starts and every few hours." checked={settings.autoUpdate} onChange={(v) => update({ autoUpdate: v })} />
+        <p className="hint">{update_ ? `Lumi ${update_.currentVersion}${update_.checkedAt ? ` · last checked ${timeAgo(new Date(update_.checkedAt).toISOString())} ago` : ''}` : '…'}</p>
+        {update_?.lastError && update_.status !== 'error' && <p className="hint warn">The last check failed: {update_.lastError}</p>}
+        <Toggle label="Check for updates automatically" hint="Looks for a new version when Lumi starts, every 30 minutes, and when the computer wakes up or unlocks." checked={settings.autoUpdate} onChange={(v) => update({ autoUpdate: v })} />
+        <Toggle label="Install updates automatically" hint="Downloads a new version as soon as it is found and restarts Lumi by itself once you have been away from the computer for 10 minutes (never during a focus session). Off: you choose when with Update now." checked={settings.autoInstallUpdates} onChange={(v) => update({ autoInstallUpdates: v })} />
         {update_ && describeUpdate(update_) && <p className={`hint${update_.status === 'error' ? ' warn' : ''}`}>{describeUpdate(update_)}</p>}
         {update_?.status === 'downloading' && <div className="focus-bar" role="progressbar" aria-valuenow={update_.percent ?? 0} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${update_.percent ?? 0}%` }} /></div>}
         <div className="form-actions" style={{ justifyContent: 'flex-start' }}>

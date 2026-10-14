@@ -3,9 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const electron = vi.hoisted(() => ({ app: { isPackaged: true, getVersion: () => '0.1.5' } }));
 vi.mock('electron', () => electron);
 
-import { compareVersions, friendly, isLocalFeed, parseLatestRelease, UpdateService, updateStrategy } from '../electron/updater';
+import {
+  AWAY_SECONDS, CHECK_EVERY_MS, compareVersions, friendly, isLocalFeed, MIN_CHECK_GAP_MS, parseLatestRelease, RETRY_AFTER_FAILURE_MS, shouldAutoDownload, shouldRestartNow, UpdateService, updateStrategy,
+} from '../electron/updater';
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   electron.app.isPackaged = true;
@@ -78,7 +81,8 @@ describe('UpdateService (notify-only platforms)', () => {
     service.on('state', (s) => seen.push(s.status));
     const state = await service.check(true);
     expect(state).toMatchObject({ status: 'available', version: '0.1.9', notifyOnly: true, currentVersion: '0.1.5' });
-    expect(seen).toEqual(['checking', 'available']);
+    expect(seen[0]).toBe('checking');
+    expect(seen.slice(1).every((s) => s === 'available')).toBe(true); // the last one only adds when it checked
   });
 
   it('says you are up to date when the latest release is not newer', async () => {
@@ -121,5 +125,112 @@ describe('UpdateService (notify-only platforms)', () => {
   it('ignores a request to install when nothing has been downloaded', () => {
     const service = new UpdateService();
     expect(() => service.install()).not.toThrow();
+  });
+});
+
+describe('getting a new version soon after it comes out', () => {
+  const onMac = () => vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin');
+  const release = (tag: string) => vi.fn(async () => new Response(JSON.stringify({ tag_name: tag })));
+  const fakeClock = () => vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+
+  it('checks every half hour, not every few hours', () => {
+    expect(CHECK_EVERY_MS).toBe(30 * 60_000);
+    expect(RETRY_AFTER_FAILURE_MS).toBeLessThan(CHECK_EVERY_MS);
+  });
+
+  it('downloads a new version by itself only when automatic installs are on and the platform can update itself', () => {
+    expect(shouldAutoDownload({ status: 'available', notifyOnly: false }, true)).toBe(true);
+    expect(shouldAutoDownload({ status: 'available', notifyOnly: false }, false)).toBe(false);
+    expect(shouldAutoDownload({ status: 'available', notifyOnly: true }, true)).toBe(false); // .deb: only tells you
+    for (const status of ['idle', 'checking', 'none', 'downloading', 'ready', 'error'] as const) expect(shouldAutoDownload({ status, notifyOnly: false }, true), status).toBe(false);
+  });
+
+  it('restarts into a ready update only while you are away, and never during a focus session', () => {
+    const base = { status: 'ready' as const, autoInstall: true, idleSeconds: AWAY_SECONDS, focusActive: false };
+    expect(shouldRestartNow(base)).toBe(true);
+    expect(shouldRestartNow({ ...base, idleSeconds: AWAY_SECONDS - 1 })).toBe(false);
+    expect(shouldRestartNow({ ...base, focusActive: true })).toBe(false);
+    expect(shouldRestartNow({ ...base, autoInstall: false })).toBe(false);
+    expect(shouldRestartNow({ ...base, status: 'available' })).toBe(false);
+    expect(shouldRestartNow({ ...base, status: 'downloading' })).toBe(false);
+  });
+
+  it('checks when the computer wakes up, but not again right away', async () => {
+    onMac();
+    fakeClock();
+    const fetchMock = release('v0.1.9');
+    vi.stubGlobal('fetch', fetchMock);
+    const service = new UpdateService();
+    service.start(() => true);
+    await service.checkSoon();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await service.checkSoon();
+    expect(fetchMock).toHaveBeenCalledTimes(1); // too soon after the last one
+    vi.setSystemTime(Date.now() + MIN_CHECK_GAP_MS + 1000);
+    await service.checkSoon();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    service.stop();
+  });
+
+  it('does not check on wake-up when automatic checks are off, or in development', async () => {
+    onMac();
+    const fetchMock = release('v0.1.9');
+    vi.stubGlobal('fetch', fetchMock);
+    const off = new UpdateService();
+    off.start(() => false);
+    await off.checkSoon();
+    off.stop();
+    electron.app.isPackaged = false;
+    await new UpdateService().checkSoon();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('tries again a few minutes after a failed background check', async () => {
+    onMac();
+    fakeClock();
+    const fetchMock = vi.fn(async () => { throw new Error('getaddrinfo ENOTFOUND api.github.com'); });
+    vi.stubGlobal('fetch', fetchMock);
+    let on = false;
+    const service = new UpdateService();
+    service.start(() => on);
+    await vi.advanceTimersByTimeAsync(10_000); // the first scheduled check does nothing while off
+    on = true;
+    await service.check(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(RETRY_AFTER_FAILURE_MS - 1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    service.stop();
+  });
+
+  it('remembers when it last checked, and why the last check failed', async () => {
+    onMac();
+    vi.stubGlobal('fetch', release('v0.1.5'));
+    const service = new UpdateService();
+    const first = await service.check(false);
+    expect(first).toMatchObject({ status: 'none', lastError: undefined });
+    expect(first.checkedAt).toBeGreaterThan(0);
+    const checkedAt = first.checkedAt;
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('getaddrinfo ENOTFOUND api.github.com'); }));
+    const failed = await service.check(false); // a background failure shows no error status, but is not forgotten
+    expect(failed.status).toBe('idle');
+    expect(failed.lastError).toContain('internet connection');
+    expect(failed.checkedAt).toBe(checkedAt);
+    vi.stubGlobal('fetch', release('v0.1.9'));
+    const ok = await service.check(false);
+    expect(ok).toMatchObject({ status: 'available', version: '0.1.9', lastError: undefined });
+  });
+
+  it('does not schedule a retry for a manual check or when it was never started', async () => {
+    onMac();
+    fakeClock();
+    const fetchMock = vi.fn(async () => { throw new Error('fetch failed'); });
+    vi.stubGlobal('fetch', fetchMock);
+    const service = new UpdateService();
+    await service.check(false); // never started
+    await service.check(true); // manual: the person sees the error
+    await vi.advanceTimersByTimeAsync(RETRY_AFTER_FAILURE_MS * 2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

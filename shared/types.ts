@@ -136,8 +136,10 @@ export interface Settings {
   sleepAfterMinutes: number;
   /** Detect music playing on the computer and dance to its tempo. */
   reactToMusic: boolean;
-  /** Look for new versions in the background (every few hours). */
+  /** Look for new versions in the background (every 30 minutes, and when the computer wakes up). */
   autoUpdate: boolean;
+  /** Download a new version as soon as it is found, and restart into it once you have been away for a while. */
+  autoInstallUpdates: boolean;
   /** Start `ollama serve` automatically when it is installed but not running. */
   autoStartOllama: boolean;
   /** Download and install Ollama and its model by itself when they are missing (Windows and macOS). */
@@ -229,6 +231,10 @@ export interface UpdateState {
   /** Download progress, 0-100. */
   percent?: number;
   message?: string;
+  /** When the last check finished without an error, epoch ms. */
+  checkedAt?: number;
+  /** Why the last check failed (also for background checks, which stay quiet otherwise); cleared by the next good one. */
+  lastError?: string;
   /** True when Lumi can only point you to the download page (macOS, .deb) instead of updating itself. */
   notifyOnly: boolean;
 }

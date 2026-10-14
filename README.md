@@ -268,11 +268,13 @@ Notes:
 
 ## Updates
 
-Installed copies of Lumi look for new versions on their own: shortly after starting and then every few hours (Settings → Updates lets you switch this off or check right now).
+Installed copies of Lumi look for new versions on their own: shortly after starting, then every 30 minutes, and right away when the computer wakes up, is unlocked or Lumi is shown (never more often than every 10 minutes). A background check that fails (for example no network yet) is tried again after 5 minutes. Settings → Updates lets you switch the checks off or check right now, and shows when the last check happened and why it failed, if it did.
+
+**Automatic installs** (Settings → Updates → "Install updates automatically", on by default): on Windows, the Linux AppImage and macOS, a new version is downloaded in the background as soon as it is found, its SHA-512 is checked, and Lumi restarts into it once you have been away from the computer for 10 minutes (never during a focus session). As soon as it is ready the tray menu offers **Restart to update to X**, and a ready update is also installed when you quit Lumi. Turn the setting off to choose the moment yourself with **Update now**, as described below.
 
 | Install | What happens |
 |---|---|
-| **Windows** | When a new version is found, a banner (and Settings → Updates) offers **Update now**. Clicking it downloads the new version inside the app, with a progress bar (no browser, no installer to run), checks its SHA-512 against `latest.yml`, and restarts Lumi into the new version when it is ready. |
+| **Windows** | With automatic installs off, when a new version is found a banner (and Settings → Updates) offers **Update now**. Clicking it downloads the new version inside the app, with a progress bar (no browser, no installer to run), checks its SHA-512 against `latest.yml`, and restarts Lumi into the new version when it is ready. |
 | **Linux AppImage** | Same as Windows. |
 | **macOS** | **Update now** downloads the release `.zip` for your chip (Apple Silicon or Intel) inside the app, checks its SHA-512 against `latest-mac.yml`, and then Lumi restarts: a small script swaps the app in place, signs it ad hoc and opens it again. This works without an Apple Developer ID because the app does it itself instead of using Squirrel.Mac. It needs Lumi to be in a folder you can write to (such as `/Applications` as an admin user); otherwise Lumi just tells you a newer version exists and opens the download page. |
 | **Linux .deb** | Lumi tells you a newer version exists and opens the download page (the .deb format does not support self-updating). |

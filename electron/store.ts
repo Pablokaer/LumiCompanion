@@ -38,6 +38,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sleepAfterMinutes: 3,
   reactToMusic: true,
   autoUpdate: true,
+  autoInstallUpdates: true,
   autoStartOllama: true,
   autoSetupOllama: true,
   morningBriefing: true,

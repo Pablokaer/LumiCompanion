@@ -29,7 +29,7 @@ import { QuickCapture } from './quickCapture';
 import { RELEASES_PAGE, UpdateService } from './updater';
 import { LANGUAGE_NAMES, transcribe } from './voice/transcribe';
 import { clearTokens, getSettings, loadDotEnv, routineStorage, updateSettings } from './store';
-import { createTray, rebuildTrayMenu } from './tray';
+import { createTray, rebuildTrayMenu, setPendingUpdate } from './tray';
 import { applyWidgetMode, createWidgetWindow, currentScale, getWindow, peek, refreshWindowSize, setWindowMode, toggleWindow } from './window';
 
 loadDotEnv(path.join(__dirname, '../..'));
@@ -176,12 +176,28 @@ async function bootstrap() {
   setInterval(checkBriefing, 60_000);
   updates.on('state', (s) => {
     send('update:state', s);
-    const worthTellingAbout = s.status === 'ready' || s.status === 'available';
+    // The tray offers a restart as soon as a downloaded update is waiting, for people who never open the panel.
+    setPendingUpdate(s.status === 'ready' && s.version ? { version: s.version, install: () => updates.install() } : undefined);
+    rebuildTrayMenu(() => applySystemSettings());
+    // With automatic installs a new version downloads by itself, so there is nothing to click until it is ready.
+    const automatic = getSettings().autoInstallUpdates && !s.notifyOnly;
+    const worthTellingAbout = s.status === 'ready' || (s.status === 'available' && !automatic);
     if (worthTellingAbout && s.version && notifiedUpdate !== s.version) {
-      if (notify(`Lumi ${s.version} is available`, s.status === 'ready' ? 'Restart Lumi to finish updating.' : s.notifyOnly ? 'Open Lumi to download the new version.' : 'Open Lumi and click Update.')) notifiedUpdate = s.version;
+      const body = s.status === 'ready'
+        ? (automatic ? 'It installs by itself when you are away. Use the tray menu to restart now.' : 'Restart Lumi to finish updating.')
+        : s.notifyOnly ? 'Open Lumi to download the new version.' : 'Open Lumi and click Update.';
+      if (notify(`Lumi ${s.version} is ${s.status === 'ready' ? 'ready' : 'available'}`, body)) notifiedUpdate = s.version;
     }
   });
-  updates.start(() => getSettings().autoUpdate);
+  updates.start(() => getSettings().autoUpdate, {
+    autoInstall: () => getSettings().autoInstallUpdates,
+    idleSeconds: () => powerMonitor.getSystemIdleTime(),
+    focusActive: () => !!focus.current,
+  });
+  // A computer that was asleep or locked has not been checking: look as soon as it is back.
+  powerMonitor.on('resume', () => void updates.checkSoon());
+  powerMonitor.on('unlock-screen', () => void updates.checkSoon());
+  widget.on('show', () => void updates.checkSoon());
 
   // The star's eyes follow the cursor anywhere on screen, but a web page only sees the mouse inside its
   // own window, so the cursor position (relative to the window) is sent from here, only when it moves.
