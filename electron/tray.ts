@@ -38,6 +38,7 @@ export function rebuildTrayMenu(onSettingsChanged: () => void) {
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: `Show / hide ${s.mascotName}`, accelerator: 'CmdOrCtrl+Shift+L', click: () => toggleWindow() },
+      { label: 'Minimize to tray', enabled: !!getWindow()?.isVisible(), click: () => { getWindow()?.hide(); rebuildTrayMenu(onSettingsChanged); } },
       { type: 'separator' },
       ...(dndControls ? [dndMenu(dndControls)] : []),
       {
@@ -51,6 +52,12 @@ export function rebuildTrayMenu(onSettingsChanged: () => void) {
         type: 'checkbox',
         checked: s.launchAtLogin,
         click: (item) => set({ launchAtLogin: item.checked }),
+      },
+      {
+        label: 'Start in the tray',
+        type: 'checkbox',
+        checked: s.startInTray,
+        click: (item) => set({ startInTray: item.checked }),
       },
       { label: 'Reload', click: () => getWindow()?.reload() },
       { type: 'separator' },

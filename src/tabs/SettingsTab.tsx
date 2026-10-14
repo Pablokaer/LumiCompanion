@@ -79,15 +79,25 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
           <span className="hint">{VIEW_OPTIONS.find((o) => o.id === settings.widgetView)?.hint} Reminders always appear.</span>
         </div>
         <div className="field">
-          <span>Widget size</span>
+          <span>Widget size (shrunk)</span>
           <div className="chips" role="radiogroup" aria-label="Widget size">
             {SIZE_OPTIONS.map((o) => (
               <button key={o.scale} role="radio" aria-checked={settings.widgetScale === o.scale} className={`chip${settings.widgetScale === o.scale ? ' on' : ''}`} onClick={() => update({ widgetScale: o.scale })}>{o.label}</button>
             ))}
           </div>
-          <span className="hint">Makes the whole widget, and the panel when it is open, smaller.</span>
+          <span className="hint">The size of the small widget when the panel is closed.</span>
+        </div>
+        <div className="field">
+          <span>Panel size (expanded)</span>
+          <div className="chips" role="radiogroup" aria-label="Panel size">
+            {SIZE_OPTIONS.map((o) => (
+              <button key={o.scale} role="radio" aria-checked={settings.panelScale === o.scale} className={`chip${settings.panelScale === o.scale ? ' on' : ''}`} onClick={() => update({ panelScale: o.scale })}>{o.label}</button>
+            ))}
+          </div>
+          <span className="hint">The size of the window when you open the full panel. It returns to the widget size when you shrink it.</span>
         </div>
         <Toggle label="Always on top" hint="Off: Lumi lives on your desktop behind other windows and peeks out for reminders." checked={settings.widgetMode === 'onTop'} onChange={(v) => update({ widgetMode: v ? 'onTop' : 'desktop' })} />
+        <Toggle label="Start in the tray" hint="Lumi starts hidden. Click her tray icon (on Windows, maybe under the hidden icons) or press the shortcut to show her." checked={settings.startInTray} onChange={(v) => update({ startInTray: v })} />
         <Toggle label="Start with my computer" checked={settings.launchAtLogin} onChange={(v) => update({ launchAtLogin: v })} />
         <label className="field">
           <span>Mascot name</span>

@@ -9,6 +9,8 @@ export const DEFAULT_SETTINGS: Settings = {
   widgetMode: 'desktop',
   widgetView: 'mascot',
   widgetScale: 1,
+  panelScale: 1,
+  startInTray: false,
   skin: 'classic',
   customColor: '#ff6fae',
   colorSwatches: [],
@@ -86,6 +88,7 @@ export function updateSettings(patch: Partial<Settings>): Settings {
     .sort((a, b) => b - a);
   next.emailLookbackDays = Math.min(14, Math.max(1, Math.round(next.emailLookbackDays || 2)));
   next.widgetScale = clampScale(next.widgetScale);
+  next.panelScale = clampScale(next.panelScale);
   settingsCache = next;
   writeJson(userFile('settings.json'), next);
   return next;

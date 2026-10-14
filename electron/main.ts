@@ -27,7 +27,7 @@ import { RELEASES_PAGE, UpdateService } from './updater';
 import { LANGUAGE_NAMES, transcribe } from './voice/transcribe';
 import { clearTokens, getSettings, loadDotEnv, updateSettings } from './store';
 import { createTray, rebuildTrayMenu } from './tray';
-import { applyWidgetMode, createWidgetWindow, getWindow, peek, refreshWindowSize, setWindowMode, toggleWindow } from './window';
+import { applyWidgetMode, createWidgetWindow, currentScale, getWindow, peek, refreshWindowSize, setWindowMode, toggleWindow } from './window';
 
 loadDotEnv(path.join(__dirname, '../..'));
 
@@ -176,7 +176,7 @@ async function bootstrap() {
     const p = screen.getCursorScreenPoint();
     const b = win.getBounds();
     // The page is zoomed by the widget scale, so its CSS pixels are not the window's pixels.
-    const z = getSettings().widgetScale || 1;
+    const z = currentScale();
     const x = Math.round((p.x - b.x) / z), y = Math.round((p.y - b.y) / z);
     const key = `${x},${y}`;
     if (key === lastCursor) return;
@@ -424,7 +424,7 @@ function registerIpc() {
   ipcMain.handle('settings:update', (_e, patch: Partial<Settings>) => {
     const next = updateSettings(patch);
     applySystemSettings(next);
-    if ('widgetView' in patch || 'widgetScale' in patch) refreshWindowSize();
+    if ('widgetView' in patch || 'widgetScale' in patch || 'panelScale' in patch) refreshWindowSize();
     rebuildTrayMenu(() => applySystemSettings());
     if ('emailLookbackDays' in patch || 'aiEmailTriage' in patch) void sync.refreshEmails();
     if ('dndFullscreen' in patch || 'dndMeetings' in patch || 'dndUntil' in patch) dnd.applySettings();
