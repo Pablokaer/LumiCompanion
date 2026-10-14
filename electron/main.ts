@@ -5,6 +5,7 @@ import type {
   AgentStatus, AssignmentResult, CaptureResult, ChatMessage, ConfirmRequest, EmailDraft, NewEventInput, PickedFile, ReminderPayload, Settings, WindowMode,
 } from '../shared/types';
 import { isAllowedExternalUrl } from '../shared/meeting';
+import type { RoutineInput } from '../shared/routines';
 import { isUnderstood, parseQuickEvent, toEventInput } from '../shared/quickParse';
 import { weatherSummary } from '../shared/weather';
 import { runAgent } from './agent/agent';
@@ -13,19 +14,21 @@ import { ensureOllama, ollamaStatus } from './agent/ollama';
 import { OllamaSetup } from './agent/ollamaSetup';
 import { answerAssignment } from './docs/assignment';
 import { SUPPORTED_EXTENSIONS } from './docs/extract';
-import { getAuthState, getProfile, hasScope, signIn, signOut } from './google/auth';
+import { dropSession, getAuthState, getProfile, hasScope, signIn, signOut } from './google/auth';
 import { createEvent, listEventsInRange, listUpcomingEvents } from './google/calendar';
 import { createDraft, getFullEmail, searchEmails } from './google/gmail';
 import { briefingDate, buildBriefing, shouldShowBriefing } from './services/briefing';
 import { DndService } from './services/dnd';
 import { FocusService, shouldHoldReminder } from './services/focus';
+import { holdReminder, releaseReminders } from './services/reminders';
+import { RoutineService } from './services/routines';
 import { SyncService } from './services/sync';
 import { WeatherService } from './services/weather';
 import { startPerfLog } from './perf';
 import { QuickCapture } from './quickCapture';
 import { RELEASES_PAGE, UpdateService } from './updater';
 import { LANGUAGE_NAMES, transcribe } from './voice/transcribe';
-import { clearTokens, getSettings, loadDotEnv, updateSettings } from './store';
+import { clearTokens, getSettings, loadDotEnv, routineStorage, updateSettings } from './store';
 import { createTray, rebuildTrayMenu } from './tray';
 import { applyWidgetMode, createWidgetWindow, currentScale, getWindow, peek, refreshWindowSize, setWindowMode, toggleWindow } from './window';
 
@@ -56,8 +59,9 @@ const dnd = new DndService({
   saveManual: (untilMs) => { updateSettings({ dndUntil: untilMs }); },
 });
 const weather = new WeatherService({ getSettings });
+const routines = new RoutineService({ storage: routineStorage, runner: { getSettings } });
 const quick = new QuickCapture();
-/** Reminders that came due while she was asked to be quiet; shown when the quiet ends. */
+/** Reminders that came due while she was asked to be quiet or you were focusing; shown when that ends. */
 let heldReminders: ReminderPayload[] = [];
 let hiddenByDnd = false;
 /** The screen is locked or the computer is asleep. */
@@ -94,6 +98,15 @@ function announceReminder(r: ReminderPayload) {
     if (join) { void shell.openExternal(join); return; }
     const w = getWindow(); w?.show(); w?.focus();
   });
+}
+
+/** Shows the reminders that came due while she was asked to be quiet or you were focusing. */
+function releaseHeldReminders() {
+  const relevant = releaseReminders(heldReminders);
+  heldReminders = [];
+  if (!relevant.length) return;
+  announceReminder(relevant[0]);
+  if (relevant.length > 1) notify('While you were busy', `${relevant.length} reminders came up: ${relevant.map((h) => h.event.title).join(', ')}.`);
 }
 
 function showBriefing(markShown: boolean) {
@@ -145,14 +158,17 @@ async function bootstrap() {
   globalShortcut.register('CommandOrControl+Shift+L', () => toggleWindow());
 
   sync.on('updated', (snapshot) => send('data:updated', snapshot));
-  sync.on('signed-out', async () => { sync.reset(); send('auth:changed', await getAuthState()); });
+  sync.on('signed-out', async () => { sync.reset(); dropSession(); send('auth:changed', await getAuthState()); });
   sync.on('reminder', (r: ReminderPayload) => {
-    if (shouldHoldReminder(!!focus.current, r.minutesUntil)) return; // urgent ones (<= 5 min) still come through
-    if (dnd.state.active) { heldReminders = [...heldReminders.filter((h) => h.event.id !== r.event.id), r].slice(-5); return; }
+    // Held back while quiet, or while focusing (urgent ones, 5 minutes or less, still come through). They are shown when it ends.
+    if (dnd.state.active || shouldHoldReminder(!!focus.current, r.minutesUntil)) { heldReminders = holdReminder(heldReminders, r); return; }
     announceReminder(r);
   });
 
-  focus.on('changed', (state) => send('focus:changed', state));
+  focus.on('changed', (state) => {
+    send('focus:changed', state);
+    if (!state && !dnd.state.active) releaseHeldReminders();
+  });
   focus.on('done', (state: { minutes: number }) => {
     peekUnlessQuiet();
     notify('Focus session complete', `${state.minutes} focused minutes — nice work! Time for a short break.`);
@@ -199,17 +215,16 @@ async function bootstrap() {
     if (state.active && state.reason === 'fullscreen' && getSettings().dndHideWidget && win?.isVisible()) { win.hide(); hiddenByDnd = true; }
     if (!state.active && hiddenByDnd) { hiddenByDnd = false; win?.showInactive(); }
     // Back to normal: tell her about anything that came due in the meantime.
-    if (was.active && !state.active && heldReminders.length) {
-      const now = Date.now();
-      const relevant = heldReminders.filter((h) => +new Date(h.event.start) > now - 10 * 60_000).sort((a, b) => +new Date(a.event.start) - +new Date(b.event.start));
-      heldReminders = [];
-      if (relevant.length) {
-        announceReminder(relevant[0]);
-        if (relevant.length > 1) notify('While you were busy', `${relevant.length} reminders came up: ${relevant.map((h) => h.event.title).join(', ')}.`);
-      }
-    }
+    if (was.active && !state.active && !focus.current) releaseHeldReminders();
   });
   dnd.start();
+
+  // ---- routines: daily jobs that put new articles in the News tab ----
+  routines.on('changed', () => { send('routines:updated', routines.list()); send('news:updated', routines.news()); });
+  routines.on('news', (items: { title: string }[], routine: { name: string }) => {
+    notify(`${items.length} new in “${routine.name}”`, items.slice(0, 3).map((i) => `• ${i.title}`).join('\n'), () => { const w = getWindow(); w?.show(); w?.focus(); });
+  });
+  routines.start();
 
   // ---- weather ----
   weather.on('state', (s) => send('weather:state', s));
@@ -419,6 +434,23 @@ function registerIpc() {
     }
   });
 
+  // --- Routines and news ---
+  ipcMain.handle('routines:list', () => routines.list());
+  ipcMain.handle('routines:save', (_e, input: RoutineInput) => routines.save(input ?? {}));
+  ipcMain.handle('routines:remove', (_e, id: string) => routines.remove(String(id)));
+  ipcMain.handle('routines:run', (_e, id: string) => routines.run(String(id)));
+  ipcMain.handle('news:list', () => routines.news());
+  ipcMain.handle('news:open', (_e, id: string) => {
+    // Only an address that a routine found (and that is http or https) can be opened.
+    const item = routines.news().find((n) => n.id === id);
+    if (!item || !/^https?:\/\//i.test(item.url)) return;
+    routines.markRead(item.id);
+    return shell.openExternal(item.url);
+  });
+  ipcMain.handle('news:markRead', (_e, id?: string) => routines.markRead(id ? String(id) : undefined));
+  ipcMain.handle('news:dismiss', (_e, id: string) => routines.dismiss(String(id)));
+  ipcMain.handle('news:clearRead', () => routines.clearRead());
+
   // --- Settings ---
   ipcMain.handle('settings:get', () => getSettings());
   ipcMain.handle('settings:update', (_e, patch: Partial<Settings>) => {
@@ -442,6 +474,6 @@ function registerIpc() {
   });
 }
 
-app.on('will-quit', () => { updates.applyOnQuit(); if (!getSettings().keepSignedIn) clearTokens(); dnd.stop(); weather.stop(); quick.dispose(); globalShortcut.unregisterAll(); });
+app.on('will-quit', () => { updates.applyOnQuit(); if (!getSettings().keepSignedIn) clearTokens(); dnd.stop(); weather.stop(); routines.stop(); quick.dispose(); globalShortcut.unregisterAll(); });
 // Keep running in the tray when the window is closed.
 app.on('window-all-closed', () => { /* stay alive */ });

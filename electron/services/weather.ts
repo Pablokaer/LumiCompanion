@@ -26,7 +26,7 @@ export class WeatherService extends EventEmitter {
   state: WeatherState = { status: 'off' };
   private located?: { place: Place; at: number; key: string };
   private timer?: NodeJS.Timeout;
-  private busy?: Promise<WeatherState>;
+  private busy?: { key: string; promise: Promise<WeatherState> };
 
   constructor(private deps: WeatherDeps) { super(); }
 
@@ -41,10 +41,19 @@ export class WeatherService extends EventEmitter {
     this.timer = undefined;
   }
 
-  /** Looks up the place and the weather again (shares an in-flight request). */
+  /**
+   * Looks up the place and the weather again. A request already going for the same place is shared; one for a
+   * place that has since been changed is waited for and then redone, so the answer is never for the old place.
+   */
   refresh(): Promise<WeatherState> {
-    if (!this.busy) this.busy = this.run().finally(() => { this.busy = undefined; });
-    return this.busy;
+    const { weather, weatherPlace } = this.deps.getSettings();
+    const key = `${weather}|${weatherPlace.trim().toLowerCase()}`;
+    if (this.busy?.key === key) return this.busy.promise;
+    const previous = this.busy?.promise;
+    const promise: Promise<WeatherState> = (previous ? previous.catch(() => undefined).then(() => this.run()) : this.run())
+      .finally(() => { if (this.busy?.promise === promise) this.busy = undefined; });
+    this.busy = { key, promise };
+    return promise;
   }
 
   private set(state: WeatherState) {

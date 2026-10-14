@@ -95,7 +95,7 @@ export function buildEventBody(input: NewEventInput, timeZone = localTimeZone())
 
   if (!isLocalDateTime(input.start)) throw new Error(`Invalid start "${input.start}". Use YYYY-MM-DDTHH:mm.`);
   const start = input.start.slice(0, 16);
-  let end = input.end && isLocalDateTime(input.end) ? input.end.slice(0, 16) : addMinutesLocal(start, input.durationMinutes ?? 60);
+  let end = input.end && isLocalDateTime(input.end) ? input.end.slice(0, 16) : addMinutesLocal(start, Number.isFinite(input.durationMinutes) && input.durationMinutes! > 0 ? input.durationMinutes! : 60);
   if (parseLocal(end) <= parseLocal(start)) end = addMinutesLocal(start, 60);
   return {
     summary: title,

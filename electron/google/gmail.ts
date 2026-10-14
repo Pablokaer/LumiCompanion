@@ -22,10 +22,8 @@ function decodeEntities(s: string) {
   return s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 }
 
-async function getMessage(id: string): Promise<EmailSummary> {
-  const params = new URLSearchParams({ format: 'metadata' });
-  for (const h of ['From', 'To', 'Subject', 'Date', 'List-Unsubscribe']) params.append('metadataHeaders', h);
-  const m = await googleFetch<GMessage>(`${BASE}/${id}?${params}`);
+/** The summary of a message (metadata or full format: both carry the headers). */
+function toSummary(m: GMessage): EmailSummary {
   const header = (name: string) => m.payload?.headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? '';
   const from = parseFrom(header('From'));
   return {
@@ -40,6 +38,12 @@ async function getMessage(id: string): Promise<EmailSummary> {
     labelIds: m.labelIds ?? [],
     hasListUnsubscribe: !!header('List-Unsubscribe'),
   };
+}
+
+async function getMessage(id: string): Promise<EmailSummary> {
+  const params = new URLSearchParams({ format: 'metadata' });
+  for (const h of ['From', 'To', 'Subject', 'Date', 'List-Unsubscribe']) params.append('metadataHeaders', h);
+  return toSummary(await googleFetch<GMessage>(`${BASE}/${id}?${params}`));
 }
 
 /** Lists inbox messages matching a Gmail search query, with limited concurrency. */
@@ -97,10 +101,9 @@ export function extractBody(part?: GPart): string {
 }
 
 export async function getFullEmail(id: string): Promise<FullEmail> {
-  const [summary, full] = await Promise.all([
-    getMessage(id),
-    googleFetch<GMessage & { payload?: GPart }>(`${BASE}/${id}?format=full`),
-  ]);
+  // One request: the full format has the headers too.
+  const full = await googleFetch<GMessage & { payload?: GPart }>(`${BASE}/${id}?format=full`);
+  const summary = toSummary(full);
   const header = (name: string) => full.payload?.headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? '';
   return {
     summary,

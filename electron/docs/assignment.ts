@@ -45,6 +45,7 @@ const LABELS = {
       noCitation: (n: number) => `O parágrafo ${n} não tem citação.`,
       noneCited: (n: number) => `A resposta não cita nenhuma das ${n} fontes encontradas.`,
       dropped: (n: number) => `${n} citação(ões) sem fonte correspondente foram removidas.`,
+      truncated: (n: number) => `O documento é maior que ${n} caracteres: só o início foi lido, então perguntas mais adiante podem ter ficado de fora.`,
       unsupported: (c: string) => `Possível afirmação sem apoio nas fontes: “${c}”`,
     }, question: 'Questão', references: 'Referências', note: 'Respostas elaboradas com apoio de IA local; as fontes foram obtidas do índice OpenAlex. Confira o conteúdo e as referências antes de entregar.', unsupported: 'Atenção: não foram encontradas fontes para esta questão. A resposta abaixo não tem citações e deve ser verificada.' },
   en: { review: {
@@ -53,6 +54,7 @@ const LABELS = {
       noCitation: (n: number) => `Paragraph ${n} has no citation.`,
       noneCited: (n: number) => `The answer cites none of the ${n} retrieved sources.`,
       dropped: (n: number) => `${n} citation(s) with no matching source were removed.`,
+      truncated: (n: number) => `The document is longer than ${n} characters: only the start was read, so questions further on may be missing.`,
       unsupported: (c: string) => `Possibly unsupported by the sources: “${c}”`,
     }, question: 'Question', references: 'References', note: 'Answers drafted with a local AI; sources were retrieved from the OpenAlex index. Check the content and references before submitting.', unsupported: 'Warning: no sources were found for this question. The answer below has no citations and must be verified.' },
   es: { review: {
@@ -60,6 +62,7 @@ const LABELS = {
       intro: 'Puntos que la revisión automática le pide comprobar. Elimine esta sección antes de entregar.',
       noCitation: (n: number) => `El párrafo ${n} no tiene cita.`,
       noneCited: (n: number) => `La respuesta no cita ninguna de las ${n} fuentes encontradas.`,
+      truncated: (n: number) => `El documento tiene más de ${n} caracteres: solo se leyó el principio, así que pueden faltar preguntas posteriores.`,
       dropped: (n: number) => `Se eliminaron ${n} cita(s) sin fuente correspondiente.`,
       unsupported: (c: string) => `Posible afirmación sin respaldo en las fuentes: “${c}”`,
     }, question: 'Pregunta', references: 'Referencias', note: 'Respuestas elaboradas con apoyo de IA local; las fuentes se obtuvieron del índice OpenAlex. Revise el contenido y las referencias antes de entregar.', unsupported: 'Atención: no se encontraron fuentes para esta pregunta. La respuesta no tiene citas y debe verificarse.' },
@@ -88,6 +91,10 @@ export async function answerAssignment(file: string, deps: AssignmentDeps): Prom
   const unsupported: number[] = [];
   const body: Para[] = [];
   const notes: string[] = [];
+  if (text.length > MAX_INPUT_CHARS) {
+    onProgress('The document is long: only its start can be read…');
+    notes.push(labels.review.truncated(MAX_INPUT_CHARS));
+  }
 
   for (const [i, q] of parsed.questions.entries()) {
     const tag = `Question ${i + 1}/${parsed.questions.length}`;

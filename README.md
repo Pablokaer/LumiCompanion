@@ -13,12 +13,13 @@ Lumi is a little blue star that lives on your Windows or Mac desktop. It watches
 - **Reminders:** configurable lead times (default 15 and 5 min). Lumi peeks out in front of your windows and shows a system notification.
 - **Important emails:** a heuristic score (Gmail "Important", starred, personal, direct-to-you, deadline/payment/meeting keywords in EN + PT, newsletter/promo penalties), blended with an optional local-AI triage.
 - **Local agent:** chat in English or Portuguese. Tools: list events, create event (**always asks you to confirm first**), get important emails, search Gmail.
+- **Routines and News:** daily jobs she does by herself (a news search, developer articles, or a website to watch for new posts) whose results land in a **News** tab, one click away from the article. See [Routines and News](#routines-and-news).
 - **Calendar tab:** a full month view with previous / next / today navigation. Each day shows dots for its events, and selecting a day lists them underneath. Multi-day events appear on every day they cover. Weeks start on Monday.
 - **Widget views:** when shrunk, the widget can show the star in a circle (default), a browsable **monthly calendar** or a **daily agenda**. Reminders always appear. Choose it in Settings → Widget.
 - **Widget and panel size:** Settings → Widget has two separate sizes (Normal, Smaller 85%, Small 70%, Tiny 60%): "Widget size (shrunk)" for the small widget and "Panel size (expanded)" for the open panel. For example, keep the widget at Tiny and open the panel at Normal; shrinking the panel goes back to the Tiny widget. Her eyes still follow the cursor correctly at any size.
 - **Tray mode:** right-click the shrunk widget and choose "Minimize to tray". The tray icon menu also has "Minimize to tray" (hides the widget) and "Start in the tray" (also in Settings → Widget), which starts Lumi hidden. Click the tray icon, or press Ctrl/Cmd+Shift+L, to bring her back. On Windows the icon may sit under the hidden icons (^) until you drag it onto the taskbar.
 - **Morning briefing:** once a day after a time you choose (default 08:00), Lumi summarises today's events and your important emails in a card, a speech bubble and a notification. Preview it any time in Settings.
-- **Focus timer:** start a 15 / 25 / 45 / 60 minute session from the Today tab. Lumi shows the countdown, and reminders more than 5 minutes away are held back until it ends. You get a notification when it is done.
+- **Focus timer:** start a 15 / 25 / 45 / 60 minute session from the Today tab. Lumi shows the countdown, and reminders more than 5 minutes away are held back and shown when it ends (one "While you were busy" notice if several came due). You get a notification when it is done.
 - **Draft replies:** in the Inbox, "Draft reply" writes a reply with your local model (in the email's language, optionally following a one-line instruction). You edit it and save it to **Gmail Drafts**. Lumi never sends email.
 - **Email → event:** "Make event" looks for a meeting or deadline in an email and opens a prefilled form. You confirm before anything is created.
 - **Add events from the calendar:** select a day (or double-click it) and use "Add event".
@@ -137,13 +138,15 @@ Click the microphone button in Chat, speak, and click it again. Your speech is t
 
 ## The local AI sets itself up
 
-On **Windows and macOS**, when Lumi opens and finds no Ollama (or Ollama without any model), it sets the local AI up by itself a few seconds later, with a progress bar at the top of the panel: it downloads Ollama from its official sources (Windows: the standalone build from Ollama's GitHub releases, unpacked into `%LOCALAPPDATA%\Lumi\ollama` with the built-in `tar.exe`, so there is no installer, no administrator rights and no Ollama tray app that starts with Windows or shows its own windows; macOS: from `ollama.com`, the app is unpacked into `/Applications`, or `~/Applications` if that is not writable), starts it, and downloads the default model (a few GB, once, through Ollama itself). Nothing is downloaded when a local Ollama with a model is already there, and only a local server (`localhost`) is ever managed. Turn it off in Settings → Local AI (Ollama) ("Install the local AI automatically"), or run it by hand with "Set up the local AI now". On **Linux** the official installer needs administrator rights, so Lumi shows the one command to run instead.
+On **Windows and macOS**, when Lumi opens and finds no Ollama (or Ollama without any model), it sets the local AI up by itself a few seconds later, with a progress bar at the top of the panel: it downloads Ollama from its official sources (Windows: the standalone build from Ollama's GitHub releases, unpacked into `%LOCALAPPDATA%\Lumi\ollama` with the built-in `tar.exe`, so there is no installer, no administrator rights and no Ollama tray app that starts with Windows or shows its own windows; macOS: the app from the same release page, unpacked into `/Applications`, or `~/Applications` if that is not writable), starts it, and downloads the default model (a few GB, once, through Ollama itself). Lumi finds the newest Ollama release once, downloads the file and that release's `sha256sum.txt`, and checks the file's SHA-256 against it; nothing is unpacked or started if it does not match. Nothing is downloaded when a local Ollama with a model is already there, and only a local server (`localhost`) is ever managed. Turn it off in Settings → Local AI (Ollama) ("Install the local AI automatically"), or run it by hand with "Set up the local AI now". On **Linux** the official installer needs administrator rights, so Lumi shows the one command to run instead.
 
 ## Answering assignments into a Google Doc
 
 1. Make sure Ollama is running with a tool-capable model and that you granted the Google Docs permission (see above).
 2. In **Chat**, click the paperclip button and pick a `.docx`, `.pdf`, `.txt` or `.md` file containing the questions.
 3. Lumi shows its progress and replies with a link to the new Google Doc.
+
+Only the first 14,000 characters of a file are read. If yours is longer, Lumi says so while it works and the document's review notes mention that later questions may be missing.
 
 How it works:
 
@@ -155,6 +158,21 @@ How it works:
 - The *writing* model (Settings → Local AI) is used for the answers, so you can pick a larger model for quality.
 
 Limitations: a small local model can still write weak or wrong prose, and OpenAlex metadata is sometimes imprecise (for example publication years), so always review the text and the references before submitting. Scanned PDFs are not supported (no OCR). Search queries are sent to OpenAlex, so this feature is not fully offline.
+
+## Routines and News
+
+Two tabs in the bottom bar work together. **Routines** is where you tell her what to look for; **News** is where she puts what she finds. Click an item in News to open the article in your browser (it is then marked read). A badge on the News tab counts what you have not read, and a system notification tells you when a routine found something (unless do-not-disturb is on).
+
+Routine types (Routines → **New routine**; the form also has ready-made ideas such as "AI & LLM news", "Technology news", "Big tech companies" and "Programming articles"):
+- **News search:** searches Google News for your words (`OR` and quotes work) in English or Portuguese, looking at the last two days.
+- **Articles (Hacker News):** developer articles and discussions about your words, from the Hacker News search.
+- **Website to watch:** give an address such as `https://akitaonrails.com/` and every new post becomes an item in News. She reads the site's RSS/Atom feed (the one the page advertises, or a usual path such as `/feed` or `/index.xml`). Without a feed she compares the article links on the page. On its very first run she adds only the latest 3 posts, so News is not flooded with the whole archive.
+
+How often: every hour, every 6 hours, or every day at a time you choose. A daily routine whose time passed while the computer was off runs as soon as Lumi starts. Each run adds at most the number of items you set (1-10). For a website, posts that did not fit are shown on the next run; for the searches, the items passed over are not offered again. A new routine runs once straight away so you can see it work, **Run now** does it again whenever you like, and the switch pauses it. If a run fails (for example no internet) the routine shows the problem and tries again in 10 minutes.
+
+For the two search types, **Pick and summarise with AI** (on by default) asks your local Ollama model to choose the most interesting items, skip repeated stories and write a one-sentence summary of each in the routine's language. If Ollama is not running, the newest items are used without a summary. The model only sees the headlines, and only an item number and a short summary are taken from its answer.
+
+Routines and news are kept on your computer (`routines.json`, `routines-seen.json` and `news.json` in the app data folder). Each routine remembers the addresses it has already seen, so nothing is shown twice; the News list keeps the latest 300 items. Remove an item with ×, or use **Mark all read** and **Clear read**.
 
 ## Staying out of your way, and noticing the world
 
@@ -195,6 +213,8 @@ Occasional, kind nudges: drink water, stretch, rest your eyes, check your postur
 | Answer a file of questions | Chat → paperclip button |
 | Speak a message | Chat → microphone button |
 | Start a focus session | Today tab → Focus session |
+| Create a routine (search news, watch a website) | Routines tab → New routine |
+| Read what the routines found | News tab (click an item to open the article) |
 | Add an event on a day | Calendar tab → select a day → Add event (or double-click the day) |
 | Filter emails by importance | Inbox → the Supernova / Bright / Faint buttons (combine them, or pick All). Your choice is remembered |
 | Draft a reply / make an event from an email | Inbox → buttons under each email |
@@ -278,20 +298,23 @@ electron/              Main process (Node)
   voice/               transcribe.ts (local Whisper speech-to-text)
   updater.ts           Update service: electron-updater for Windows/AppImage, macUpdate.ts for macOS, release-page check elsewhere
   macUpdate.ts         macOS self-update: feed parsing, verified download, in-place swap script
-  services/            sync.ts (polling), reminders.ts, emailScoring.ts, time.ts, briefing.ts, focus.ts, dnd.ts (do-not-disturb + Windows full-screen probe via koffi), weather.ts (Open-Meteo + location)
+  services/            sync.ts (polling), reminders.ts, emailScoring.ts, routines.ts (scheduler for the routines), time.ts, briefing.ts, focus.ts, dnd.ts (do-not-disturb + Windows full-screen probe via koffi), weather.ts (Open-Meteo + location)
+  routines/            feeds.ts (RSS/Atom parsing, feed discovery, Google News and Hacker News searches), runner.ts (one run: new items, AI pick and summary)
   quickCapture.ts      Global shortcut and the small quick-capture window
 shared/types.ts        Types shared by main + renderer
 shared/appearance.ts   Shape and accessory tables, slot rules and settings migration
 shared/dnd.ts          Do-not-disturb rules (manual, full-screen, meeting)
 shared/meeting.ts      Meeting-link detection, safe-link allow-list, join window
 shared/quickParse.ts   English/Portuguese sentence → event parser
+shared/routines.ts     Routine and news types, presets, validation and the "is it due" rule
+shared/settingsGuard.ts  Checks a settings patch from the renderer (known keys, types, ranges, AI server address)
 shared/weather.ts      Weather codes, seasons, automatic look and falling particles
 shared/proactive.ts    Tip engine (cooldowns, activity tracking)
 shared/notices.ts      System reactions (battery, network, audio devices, lock)
 shared/color.ts        Colour maths (hex/RGB/HSV/HSL), skin derivation and saved-swatch helpers
 src/                   React renderer (space UI)
   components/          Mascot (SVG star), shapes (body shapes), gear (accessories), Starfield (canvas), CompactView, CalendarWidget, MonthCalendar, DayAgenda, QuickAdd, FocusCard, BriefingCard, Panel, LoginScreen
-  tabs/                Today, Calendar, Inbox, Chat, Settings
+  tabs/                Today, Calendar, Inbox, News, Chat, Routines, Settings
   calendar.ts          Pure date helpers (month grid, events by day)
   appearance.tsx       Skins (presets and custom), shape and accessory catalogue, and the theme context
   Gallery.tsx          Browser-preview gallery of every shape and accessory (`?gallery=1`)
@@ -320,12 +343,15 @@ scripts/oauth-json.mjs Builds google-oauth.json from .env or environment variabl
 ## Privacy & security
 
 - Google data is fetched directly from Google to your computer. There is no Lumi backend.
-- Tokens are encrypted at rest with the OS keychain (DPAPI on Windows, Keychain on macOS). You stay signed in across restarts (Settings → Account → "Stay signed in"; turn it off to sign in again every run). A missing network right after the computer starts never signs you out; only Google rejecting the sign-in does. Note: while your Google Cloud OAuth consent screen is in "Testing" status, Google itself expires the sign-in after 7 days; publish the app (or switch to "In production") to avoid that.
+- Tokens are encrypted at rest with the OS keychain (DPAPI on Windows, Keychain on macOS). Where the system cannot encrypt (for example some Linux setups without a keyring) they are kept in memory only and never written to disk, so you sign in again each time Lumi starts; plain-text token files left by older versions are deleted. You stay signed in across restarts (Settings → Account → "Stay signed in"; turn it off to sign in again every run). A missing network right after the computer starts never signs you out; only Google rejecting the sign-in does. Note: while your Google Cloud OAuth consent screen is in "Testing" status, Google itself expires the sign-in after 7 days; publish the app (or switch to "In production") to avoid that.
 - The renderer is sandboxed with `contextIsolation` and a strict CSP in production. It can only open `https` links to `*.google.com` and known video-meeting services externally.
 - The agent can only *read* email (`gmail.readonly`). Creating a calendar event always needs your click.
 - The Docs permission (`documents`) is used only to create the documents you ask for. Only files you pick in the file dialog are read.
 - The Gmail compose permission (`gmail.compose`) is used only to save drafts you ask for. Lumi never sends email.
 - The assignment feature sends short search queries (not your files) to OpenAlex.
+- Routines contact only what you point them at: Google News (news searches), Hacker News (article searches) and the websites you ask her to watch. They send your search words or ask for the page, nothing about you beyond what any web request reveals. Only `http(s)` addresses are read, at most 3 MB per page, and never an address on your own computer or network (`localhost`, private and link-local ranges, `.local` names), checked again on every redirect. Only an article address that a routine found can be opened from News.
+- Sign-in needs the Calendar and Gmail (read-only) permissions. If a box is unticked on Google's consent screen, Lumi refuses the sign-in and asks you to try again with every box ticked. If Google later rejects the sign-in (for example you revoked access), Lumi forgets it, tokens and cached profile included, and shows the login screen.
+- Settings are checked in the main process: unknown settings and values of the wrong kind or range are ignored, and files are saved through a temporary file so a crash cannot leave a half-written one. The AI server address must be an `http(s)` address without a password; if it is not on your computer, Settings warns that your emails, calendar and documents will be sent to it.
 - Weather: an IP-geolocation request (ipwho.is, then ipapi.co as a fallback) finds your approximate place, unless you type a city, and your coordinates are sent to Open-Meteo. Nothing else is sent, and Settings → Weather and seasons turns it off.
 - Quick capture sends your sentence nowhere unless the rules cannot understand it and your local Ollama is running (it stays on your computer).
 - Update checks contact GitHub (the repository's releases) and send nothing about you beyond what any web request reveals.

@@ -2,7 +2,10 @@ import { app, safeStorage } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { migrateAppearance } from '../shared/appearance';
+import { sanitizePatch } from '../shared/settingsGuard';
+import type { NewsItem, Routine } from '../shared/routines';
 import type { Settings } from '../shared/types';
+import type { RoutineStorage } from './services/routines';
 
 export const DEFAULT_SETTINGS: Settings = {
   mascotName: 'Lumi',
@@ -63,9 +66,16 @@ function readJson<T>(file: string): T | undefined {
   }
 }
 
-function writeJson(file: string, data: unknown) {
+/** Writes through a temporary file and renames it, so a crash or power cut never leaves a half-written file behind. */
+function writeFileAtomic(file: string, data: string | Buffer, mode?: number) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, data, mode === undefined ? undefined : { mode });
+  fs.renameSync(tmp, file);
+}
+
+function writeJson(file: string, data: unknown) {
+  writeFileAtomic(file, JSON.stringify(data, null, 2));
 }
 
 // ---------- Settings ----------
@@ -83,7 +93,8 @@ export function getSettings(): Settings {
 export const clampScale = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? Math.min(1, Math.max(0.6, Math.round(n * 100) / 100)) : 1);
 
 export function updateSettings(patch: Partial<Settings>): Settings {
-  const next = { ...getSettings(), ...patch };
+  // The patch usually comes from the renderer: only known settings with valid values get through.
+  const next = { ...getSettings(), ...sanitizePatch(patch, DEFAULT_SETTINGS) };
   next.reminderLeadMinutes = [...new Set(next.reminderLeadMinutes.filter((n) => Number.isFinite(n) && n >= 0))]
     .sort((a, b) => b - a);
   next.emailLookbackDays = Math.min(14, Math.max(1, Math.round(next.emailLookbackDays || 2)));
@@ -100,6 +111,30 @@ export interface SavedPosition { x: number; y: number }
 export const getSavedPosition = () => readJson<SavedPosition>(userFile('window.json'));
 export const savePosition = (pos: SavedPosition) => writeJson(userFile('window.json'), pos);
 
+// ---------- Routines and news ----------
+
+/** Routines, the addresses each has seen, and the news they found, kept in memory and written on every change. */
+function jsonStore<T>(file: string, empty: () => T) {
+  let cache: T | undefined;
+  return {
+    get: () => (cache ??= readJson<T>(userFile(file)) ?? empty()),
+    set: (value: T) => { cache = value; writeJson(userFile(file), value); },
+  };
+}
+
+const routinesFile = jsonStore<Routine[]>('routines.json', () => []);
+const seenFile = jsonStore<Record<string, string[]>>('routines-seen.json', () => ({}));
+const newsFile = jsonStore<NewsItem[]>('news.json', () => []);
+
+export const routineStorage: RoutineStorage = {
+  routines: routinesFile.get,
+  saveRoutines: routinesFile.set,
+  seen: seenFile.get,
+  saveSeen: seenFile.set,
+  news: newsFile.get,
+  saveNews: newsFile.set,
+};
+
 // ---------- Google tokens (encrypted with the OS keychain via safeStorage) ----------
 
 export interface StoredTokens {
@@ -114,24 +149,38 @@ export interface StoredTokens {
 
 const TOKENS_FILE = () => userFile('google-tokens.bin');
 
+/**
+ * Where the tokens live when the OS cannot encrypt them (for example Linux without a keyring): in memory only,
+ * so they are never written to disk in the clear. You sign in again each time Lumi starts.
+ */
+let memoryTokens: StoredTokens | undefined;
+
+const canEncrypt = () => {
+  try { return safeStorage.isEncryptionAvailable(); } catch { return false; }
+};
+
 export function loadTokens(): StoredTokens | undefined {
+  if (memoryTokens) return memoryTokens;
+  if (!canEncrypt()) return undefined; // nothing readable on disk: older versions saved plain text, which is now removed
   try {
-    const raw = fs.readFileSync(TOKENS_FILE());
-    const json = safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(raw) : raw.toString('utf8');
-    return JSON.parse(json) as StoredTokens;
+    return JSON.parse(safeStorage.decryptString(fs.readFileSync(TOKENS_FILE()))) as StoredTokens;
   } catch {
     return undefined;
   }
 }
 
 export function saveTokens(tokens: StoredTokens) {
-  const json = JSON.stringify(tokens);
-  const data = safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(json) : Buffer.from(json, 'utf8');
-  fs.mkdirSync(path.dirname(TOKENS_FILE()), { recursive: true });
-  fs.writeFileSync(TOKENS_FILE(), data, { mode: 0o600 });
+  if (!canEncrypt()) {
+    memoryTokens = tokens;
+    try { fs.unlinkSync(TOKENS_FILE()); } catch { /* none left over */ }
+    return;
+  }
+  memoryTokens = undefined;
+  writeFileAtomic(TOKENS_FILE(), safeStorage.encryptString(JSON.stringify(tokens)), 0o600);
 }
 
 export function clearTokens() {
+  memoryTokens = undefined;
   try { fs.unlinkSync(TOKENS_FILE()); } catch { /* already gone */ }
 }
 

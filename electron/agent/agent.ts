@@ -1,7 +1,7 @@
 import type {
   AgentStatus, CalendarEvent, ChatMessage, ConfirmRequest, EmailSummary, NewEventInput, ScoredEmail, Settings, UserProfile,
 } from '../../shared/types';
-import { formatLocalDateTime, localTimeZone } from '../services/time';
+import { checkNewEvent, formatLocalDateTime, localTimeZone } from '../services/time';
 import { modelFor, ollamaChat, type OllamaMessage, type OllamaTool } from './ollama';
 
 export interface AgentDeps {
@@ -161,6 +161,9 @@ export async function executeTool(name: string, args: Record<string, any>, deps:
         location: args.location ? String(args.location) : undefined,
         description: args.description ? String(args.description) : undefined,
       };
+      // Refuse an impossible date (2025-02-30) now, not after the user has already said yes.
+      const problem = checkNewEvent(input);
+      if (problem) return `Error: the event was NOT created because ${problem}. Fix it and try again, or ask the user.`;
       const approved = await deps.confirm({ kind: 'create_event', title: `Add “${input.title}” to your calendar?`, details: input });
       if (!approved) return 'The user declined. The event was NOT created.';
       const created = await deps.createEvent(input);

@@ -1,5 +1,6 @@
 import type { DndState } from '../shared/dnd';
 import { isUnderstood, parseQuickEvent, toEventInput } from '../shared/quickParse';
+import { buildRoutine, type NewsItem, type Routine } from '../shared/routines';
 import type {
   AuthState, CalendarEvent, CaptureResult, ChatMessage, DataSnapshot, FocusState, LumiApi, NewEventInput, ScoredEmail, Settings, UpdateState,
 } from '../shared/types';
@@ -53,6 +54,17 @@ function createMockApi(): LumiApi {
     mk('4', 'GitHub', '[finperiti/core] PR #482 approved', 'Your pull request was approved by 2 reviewers.', 41, ['Automated update']),
     mk('5', 'Space Weekly', 'The 10 most beautiful nebulae', 'This week: Carina, Orion and a surprise…', 12, ['Newsletter', 'Promotion']),
   ];
+  const hoursAgo = (h: number) => Date.now() - h * 3_600_000;
+  let routines: Routine[] = [
+    { id: 'r1', name: 'AI & LLM news', kind: 'news', target: 'artificial intelligence OR LLM', language: 'en', frequency: 'daily', time: '08:00', maxItems: 5, useAi: true, enabled: true, createdAt: hoursAgo(72), lastRunAt: hoursAgo(3), lastAdded: 3 },
+    { id: 'r2', name: 'Akita on Rails', kind: 'site', target: 'https://akitaonrails.com/', language: 'en', frequency: 'hourly', time: '08:00', maxItems: 5, useAi: false, enabled: true, createdAt: hoursAgo(72), lastRunAt: hoursAgo(1), lastAdded: 1 },
+  ];
+  let news: NewsItem[] = [
+    { id: 'n1', routineId: 'r2', routineName: 'Akita on Rails', title: 'Rodando LLMs locais no meu servidor caseiro', url: 'https://akitaonrails.com/', source: 'akitaonrails.com', summary: 'Um passo a passo de como montar um servidor para rodar modelos abertos.', publishedAt: hoursAgo(1), addedAt: hoursAgo(1), read: false },
+    { id: 'n2', routineId: 'r1', routineName: 'AI & LLM news', title: 'New open-weight model tops coding benchmarks', url: 'https://news.ycombinator.com/', source: 'Hacker News', summary: 'A lab released a model that beats larger rivals on several programming evaluations.', publishedAt: hoursAgo(3), addedAt: hoursAgo(3), read: false },
+    { id: 'n3', routineId: 'r1', routineName: 'AI & LLM news', title: 'Chipmakers report record demand for AI accelerators', url: 'https://news.google.com/', source: 'Reuters', publishedAt: hoursAgo(5), addedAt: hoursAgo(3), read: true },
+  ];
+  const setNews = (next: NewsItem[]) => { news = next; emit('news:updated', news); };
   let focusState: FocusState | undefined;
   let snapshot: DataSnapshot = { events, emails, lastSync: new Date().toISOString() };
 
@@ -211,6 +223,24 @@ function createMockApi(): LumiApi {
         emit('agent:status', { state: 'idle' });
         return { title: 'Sample answers', url: 'https://docs.google.com/document/d/sample/edit', questionCount: 2, sourceCount: 4, unsupported: [], style: 'APA' as const, reviewNotes: 2 };
       },
+    },
+    routines: {
+      list: async () => routines,
+      save: async (input) => {
+        const r = buildRoutine(input, input.id ? routines.find((x) => x.id === input.id) : undefined, `r${Date.now()}`);
+        routines = input.id ? routines.map((x) => (x.id === r.id ? r : x)) : [...routines, r];
+        emit('routines:updated', routines);
+        return routines;
+      },
+      remove: async (id) => { routines = routines.filter((r) => r.id !== id); emit('routines:updated', routines); return routines; },
+      run: async () => { await wait(800); return { added: 0 }; },
+    },
+    news: {
+      list: async () => news,
+      open: async (id) => { const n = news.find((x) => x.id === id); if (n) { setNews(news.map((x) => (x.id === id ? { ...x, read: true } : x))); window.open(n.url, '_blank'); } },
+      markRead: async (id) => setNews(news.map((x) => (!id || x.id === id ? { ...x, read: true } : x))),
+      dismiss: async (id) => setNews(news.filter((x) => x.id !== id)),
+      clearRead: async () => setNews(news.filter((x) => !x.read)),
     },
     settings: {
       get: async () => settings,

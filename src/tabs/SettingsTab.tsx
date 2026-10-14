@@ -45,6 +45,12 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
   const [mascotName, setMascotName] = useState(settings.mascotName);
 
   const update = async (patch: Partial<Settings>) => onSettings(await api.settings.update(patch));
+  /** An address that is not a valid http(s) one is not saved; the box goes back to what is. */
+  const saveOllamaUrl = async () => {
+    const next = await api.settings.update({ ollamaUrl });
+    setOllamaUrl(next.ollamaUrl);
+    onSettings(next);
+  };
   /** Saves a picked colour and stops previewing it. */
   const saveColor = async (hex: string) => {
     if (hex !== settings.customColor || settings.skin !== 'custom') await update({ customColor: hex, skin: 'custom' });
@@ -290,7 +296,8 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
         <div className={`ollama-pill inline ${ollama?.running ? 'ok' : 'off'}`}><span className="dot" />{!ollama ? 'Checking…' : ollama.running ? 'Connected' : ollama.error}</div>
         <label className="field">
           <span>Server URL</span>
-          <input value={ollamaUrl} onChange={(e) => setOllamaUrl(e.target.value)} onBlur={() => ollamaUrl !== settings.ollamaUrl && update({ ollamaUrl })} />
+          <input value={ollamaUrl} onChange={(e) => setOllamaUrl(e.target.value)} onBlur={() => ollamaUrl !== settings.ollamaUrl && saveOllamaUrl()} />
+          {!isLocalAddress(ollamaUrl) && <span className="hint warn">This server is not on your computer: the emails, calendar and documents Lumi asks the AI about will be sent to it.</span>}
         </label>
         <Toggle label="Install the local AI automatically" hint="When Ollama or its model is missing, Lumi downloads and sets them up by itself shortly after opening (Windows and macOS; the model is a few GB, downloaded once). Nothing is downloaded when a local Ollama with a model is already there." checked={settings.autoSetupOllama} onChange={(v) => update({ autoSetupOllama: v })} />
         {setup.status !== 'idle' && <p className={`hint${setup.status === 'error' || setup.status === 'unsupported' ? ' warn' : ''}`}>{setup.status === 'ready' ? 'Local AI is set up ✦' : describeSetup(setup) || setup.message}</p>}
@@ -366,6 +373,11 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
       </section>
     </div>
   );
+}
+
+/** Whether the AI server address points at this computer. */
+function isLocalAddress(url: string) {
+  try { return ['localhost', '127.0.0.1', '[::1]'].includes(new URL(url).hostname); } catch { return true; } // not valid yet: nothing to warn about
 }
 
 function Toggle({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange(v: boolean): void }) {

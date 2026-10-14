@@ -47,6 +47,18 @@ describe('the real app, signed out', () => {
     await app.eval("window.lumi.window.openExternal('file:///C:/Windows/System32/calc.exe').then(() => 1)");
     await app.eval("window.lumi.window.openExternal('javascript:alert(1)').then(() => 1)");
   });
+
+  it('keeps routines and news, and refuses what is not valid', async () => {
+    expect(await app.eval('window.lumi.news.list().then((n) => n.length)')).toBe(0);
+    const bad = await app.eval<string>("window.lumi.routines.save({ name: 'x', kind: 'site', target: 'not a site' }).then(() => 'saved', (e) => e.message)");
+    expect(bad).toMatch(/website address/i);
+    // Paused, so it does not go out to the internet.
+    const list = await app.eval<any[]>("window.lumi.routines.save({ name: 'Akita', kind: 'site', target: 'akitaonrails.com', enabled: false })");
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ name: 'Akita', target: 'https://akitaonrails.com/', enabled: false, useAi: false });
+    expect(await app.eval('window.lumi.routines.remove(' + JSON.stringify(list[0].id) + ').then((l) => l.length)')).toBe(0);
+    await app.eval("window.lumi.news.open('nope').then(() => 1)"); // an unknown article opens nothing
+  });
 });
 
 describe('the quick-capture screen', () => {

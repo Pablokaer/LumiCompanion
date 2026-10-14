@@ -3,6 +3,7 @@ import type {
   AgentStatus, AuthState, Briefing, ChatMessage, ConfirmRequest, DataSnapshot, FocusState, ReminderPayload, Settings, WindowMode,
 } from '../shared/types';
 import { meetingNow } from '../shared/dnd';
+import type { NewsItem } from '../shared/routines';
 import { ambientFor, autoAccessories, seasonFor } from '../shared/weather';
 import { api, isMock } from './api';
 import { AppearanceProvider, skinVars } from './appearance';
@@ -39,6 +40,7 @@ export default function App() {
   const [now, setNow] = useState(() => new Date());
   const [chat, setChat] = useState<ChatState>({ messages: [], status: { state: 'idle' } });
   const [focus, setFocus] = useState<FocusState>();
+  const [news, setNews] = useState<NewsItem[]>([]);
   const [briefing, setBriefing] = useState<Briefing>();
   const [idleSeconds, setIdleSeconds] = useState(0);
   // The colour being dragged in the picker: previewed everywhere without saving on every mouse move.
@@ -51,8 +53,10 @@ export default function App() {
     api.settings.get().then(setSettings);
     api.data.get().then(setData);
     api.focus.get().then(setFocus);
+    api.news.list().then(setNews);
     const offs = [
       api.on('data:updated', setData),
+      api.on('news:updated', setNews),
       api.on('auth:changed', setAuth),
       api.on('settings:changed', () => api.settings.get().then(setSettings)),
       api.on('focus:changed', (f?: FocusState) => { setFocus(f ?? undefined); if (!f) setHappyUntil(Date.now() + 6000); }),
@@ -247,6 +251,7 @@ export default function App() {
           dnd={dnd}
           notice={notice}
           onDismissNotice={clearNotice}
+          news={news}
         />
       )}
     </div>
