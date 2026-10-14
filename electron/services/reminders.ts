@@ -44,6 +44,26 @@ export class ReminderScheduler {
   }
 }
 
+/** How many held reminders are kept, and how long after an event began one is still worth showing. */
+const HOLD_LIMIT = 5;
+const HOLD_STALE_MS = 10 * 60_000;
+
+/** Adds a reminder to the ones held back (while quiet or focusing); a newer one for the same event replaces the old. */
+export function holdReminder(held: ReminderPayload[], r: ReminderPayload): ReminderPayload[] {
+  return [...held.filter((h) => h.event.id !== r.event.id), r].slice(-HOLD_LIMIT);
+}
+
+/** The held reminders still worth showing, soonest first, with the time left worked out again. */
+export function releaseReminders(held: ReminderPayload[], now = new Date()): ReminderPayload[] {
+  return held
+    .filter((h) => +new Date(h.event.start) > now.getTime() - HOLD_STALE_MS)
+    .sort((a, b) => +new Date(a.event.start) - +new Date(b.event.start))
+    .map((h) => {
+      const minutesUntil = Math.max(0, Math.round((+new Date(h.event.start) - now.getTime()) / 60_000));
+      return { ...h, minutesUntil, message: reminderMessage(h.event.title, minutesUntil) };
+    });
+}
+
 export function reminderMessage(title: string, minutes: number) {
   if (minutes <= 0) return `“${title}” is starting now! ✦`;
   if (minutes === 1) return `“${title}” starts in 1 minute!`;

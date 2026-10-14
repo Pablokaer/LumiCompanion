@@ -1,5 +1,6 @@
 // Types shared between the Electron main process and the React renderer.
 import type { DndState } from './dnd';
+import type { NewsItem, Routine, RoutineInput } from './routines';
 import type { WeatherState } from './weather';
 
 export interface UserProfile {
@@ -355,6 +356,24 @@ export interface LumiApi {
     /** Answers the questions in a local file and saves the result as a Google Doc. */
     answerFile(path: string): Promise<AssignmentResult>;
   };
+  routines: {
+    list(): Promise<Routine[]>;
+    /** Creates a routine (no id) or changes one. Rejects with a message when something is not valid. A new one runs at once. */
+    save(input: RoutineInput): Promise<Routine[]>;
+    remove(id: string): Promise<Routine[]>;
+    /** Runs a routine now. */
+    run(id: string): Promise<{ added: number; error?: string }>;
+  };
+  news: {
+    list(): Promise<NewsItem[]>;
+    /** Opens the article in the browser and marks it read. */
+    open(id: string): Promise<void>;
+    /** One article, or all of them when no id is given. */
+    markRead(id?: string): Promise<void>;
+    dismiss(id: string): Promise<void>;
+    /** Removes the articles already read. */
+    clearRead(): Promise<void>;
+  };
   settings: {
     get(): Promise<Settings>;
     update(patch: Partial<Settings>): Promise<Settings>;
@@ -365,7 +384,7 @@ export interface LumiApi {
     openExternal(url: string): Promise<void>;
   };
   on(
-    channel: 'reminder' | 'data:updated' | 'agent:confirm' | 'agent:status' | 'auth:changed' | 'settings:changed' | 'focus:changed' | 'briefing' | 'activity' | 'update:state' | 'cursor' | 'dnd:state' | 'weather:state' | 'system' | 'power' | 'quick:show' | 'ollama:setup',
+    channel: 'reminder' | 'data:updated' | 'agent:confirm' | 'agent:status' | 'auth:changed' | 'settings:changed' | 'focus:changed' | 'briefing' | 'activity' | 'update:state' | 'cursor' | 'dnd:state' | 'weather:state' | 'system' | 'power' | 'quick:show' | 'ollama:setup' | 'routines:updated' | 'news:updated',
     listener: (payload: any) => void,
   ): () => void;
 }

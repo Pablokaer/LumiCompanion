@@ -8,6 +8,9 @@ const URGENT_KEYWORDS = [
   'entrevista', 'vencimento', 'aprovação', 'aprovacao', 'assinatura',
 ];
 
+/** One pattern per keyword, built once (building them for every email on every sync was wasted work). */
+const URGENT_PATTERNS: [string, RegExp][] = URGENT_KEYWORDS.map((k) => [k, new RegExp(`(^|[^\\p{L}])${escapeRe(k)}([^\\p{L}]|$)`, 'iu')]);
+
 const CATEGORY_WEIGHTS: Record<string, [number, string]> = {
   CATEGORY_PROMOTIONS: [-40, 'Promotion'],
   CATEGORY_SOCIAL: [-25, 'Social'],
@@ -53,7 +56,7 @@ export function scoreEmail(email: EmailSummary, myEmail = '', now = new Date()):
     reasons.push('Automated sender');
   }
 
-  const hits = URGENT_KEYWORDS.filter((k) => new RegExp(`(^|[^\\p{L}])${escapeRe(k)}([^\\p{L}]|$)`, 'iu').test(text));
+  const hits = URGENT_PATTERNS.filter(([, re]) => re.test(text)).map(([k]) => k);
   if (hits.length) {
     score += Math.min(25, 12 + 5 * (hits.length - 1));
     reasons.push(`Mentions “${hits.slice(0, 2).join('”, “')}”`);

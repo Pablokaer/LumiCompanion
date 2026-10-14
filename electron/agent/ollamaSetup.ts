@@ -1,4 +1,5 @@
 import { spawn, execFile } from 'node:child_process';
+import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -20,13 +21,51 @@ const run = promisify(execFile);
  * Windows uses the standalone build (a plain zip with ollama.exe): the official installer also adds Ollama's tray app,
  * which starts with Windows and shows its own windows and notifications. Lumi only needs the server.
  */
+const RELEASES = 'https://github.com/ollama/ollama/releases';
+
 export const INSTALLERS = {
-  win32: { url: windowsZipUrl(), file: 'ollama-windows.zip' },
-  darwin: { url: 'https://ollama.com/download/Ollama-darwin.zip', file: 'Ollama-darwin.zip' },
+  win32: { url: releaseAssetUrl('latest', windowsAsset()), asset: windowsAsset(), file: 'ollama-windows.zip' },
+  darwin: { url: releaseAssetUrl('latest', 'Ollama-darwin.zip'), asset: 'Ollama-darwin.zip', file: 'Ollama-darwin.zip' },
 } as const;
 
-function windowsZipUrl(arch = process.arch): string {
-  return `https://github.com/ollama/ollama/releases/latest/download/ollama-windows-${arch === 'arm64' ? 'arm64' : 'amd64'}.zip`;
+function windowsAsset(arch = process.arch): string {
+  return `ollama-windows-${arch === 'arm64' ? 'arm64' : 'amd64'}.zip`;
+}
+
+/** The download address of a file in a release; `latest` or a tag such as `v0.9.0`. */
+export function releaseAssetUrl(tag: string, asset: string): string {
+  return tag === 'latest' ? `${RELEASES}/latest/download/${asset}` : `${RELEASES}/download/${encodeURIComponent(tag)}/${asset}`;
+}
+
+/** The tag of the newest release. Resolved once, so the file and its checksum come from the same release. */
+async function latestTag(): Promise<string> {
+  const res = await fetch(`${RELEASES}/latest`, { redirect: 'manual', signal: AbortSignal.timeout(30_000) });
+  const tag = res.headers.get('location')?.match(/\/releases\/tag\/([^/?#]+)/)?.[1];
+  if (!tag) throw new Error('Could not find the latest Ollama release.');
+  return decodeURIComponent(tag);
+}
+
+/** The SHA-256 of each file listed in a release's `sha256sum.txt` ("<hash>  ./<file>" per line). */
+export function parseChecksums(text: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.trim().match(/^([0-9a-f]{64})\s+\*?(?:\.\/)?(.+)$/i);
+    if (m) out.set(m[2], m[1].toLowerCase());
+  }
+  return out;
+}
+
+async function sha256File(file: string): Promise<string> {
+  const hash = crypto.createHash('sha256');
+  for await (const chunk of fs.createReadStream(file)) hash.update(chunk as Buffer);
+  return hash.digest('hex');
+}
+
+/** Throws unless the file's SHA-256 is the one the release publishes for it. */
+export async function verifyDownload(file: string, asset: string, checksums: Map<string, string>): Promise<void> {
+  const expected = checksums.get(asset);
+  if (!expected) throw new Error(`The Ollama release does not list a checksum for ${asset}, so it was not installed.`);
+  if ((await sha256File(file)) !== expected) throw new Error('The Ollama download did not match its published checksum, so it was not installed.');
 }
 
 export const LINUX_HINT = 'On Linux, install Ollama with:  curl -fsSL https://ollama.com/install.sh | sh  (it needs administrator rights), then reopen Lumi.';
@@ -116,13 +155,18 @@ export class OllamaSetup extends EventEmitter {
   }
 
   private async install(platform: 'win32' | 'darwin') {
-    const { url, file } = INSTALLERS[platform];
+    const { asset, file } = INSTALLERS[platform];
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lumi-ollama-'));
     const dest = path.join(dir, file);
     try {
       this.set({ status: 'downloading', percent: 0, message: 'Downloading Ollama' });
-      await download(url, dest, (percent) => this.set({ status: 'downloading', percent, message: 'Downloading Ollama' }));
-      this.set({ status: 'installing', message: 'Installing Ollama' });
+      // The file and its checksum list come from the same release, and nothing is unpacked unless they match.
+      const tag = await latestTag();
+      const sums = path.join(dir, 'sha256sum.txt');
+      await download(releaseAssetUrl(tag, 'sha256sum.txt'), sums, () => undefined);
+      await download(releaseAssetUrl(tag, asset), dest, (percent) => this.set({ status: 'downloading', percent, message: 'Downloading Ollama' }));
+      this.set({ status: 'installing', message: 'Checking and installing Ollama' });
+      await verifyDownload(dest, asset, parseChecksums(fs.readFileSync(sums, 'utf8')));
       if (platform === 'win32') {
         // Unpack into Lumi's own folder: no installer, no administrator rights, no tray app, no windows.
         const target = lumiOllamaDir();

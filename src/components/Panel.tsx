@@ -1,11 +1,14 @@
 import { useState, type Dispatch, type SetStateAction } from 'react';
 import type { DndState } from '../../shared/dnd';
+import type { NewsItem } from '../../shared/routines';
 import type { AuthState, Briefing, DataSnapshot, FocusState, ReminderPayload, Settings } from '../../shared/types';
 import type { ActiveNotice } from '../automation';
 import { api } from '../api';
 import type { ChatState } from '../App';
 import { ChatTab } from '../tabs/ChatTab';
 import { InboxTab } from '../tabs/InboxTab';
+import { NewsTab } from '../tabs/NewsTab';
+import { RoutinesTab } from '../tabs/RoutinesTab';
 import { SettingsTab } from '../tabs/SettingsTab';
 import { CalendarTab } from '../tabs/CalendarTab';
 import { TodayTab } from '../tabs/TodayTab';
@@ -16,10 +19,10 @@ import { NoticeToast } from './NoticeToast';
 import { OllamaBanner } from './OllamaBanner';
 import { UpdateBanner } from './UpdateBanner';
 import { formatClock, useRemaining } from './FocusCard';
-import { CalendarIcon, ChatIcon, CloseIcon, GearIcon, MailIcon, MinimizeIcon, OrbitIcon, RefreshIcon } from './Icons';
+import { CalendarIcon, ChatIcon, CloseIcon, GearIcon, MailIcon, MinimizeIcon, NewsIcon, OrbitIcon, RefreshIcon, RoutineIcon } from './Icons';
 import { Mascot, type Mood } from './Mascot';
 
-export type Tab = 'today' | 'calendar' | 'inbox' | 'chat' | 'settings';
+export type Tab = 'today' | 'calendar' | 'inbox' | 'news' | 'chat' | 'routines' | 'settings';
 
 interface Props {
   tab: Tab;
@@ -46,19 +49,23 @@ interface Props {
   dnd: DndState;
   notice?: ActiveNotice;
   onDismissNotice(): void;
+  news: NewsItem[];
 }
 
 const TABS: { id: Tab; label: string; Icon: typeof OrbitIcon }[] = [
   { id: 'today', label: 'Today', Icon: OrbitIcon },
   { id: 'calendar', label: 'Calendar', Icon: CalendarIcon },
   { id: 'inbox', label: 'Inbox', Icon: MailIcon },
+  { id: 'news', label: 'News', Icon: NewsIcon },
   { id: 'chat', label: 'Chat', Icon: ChatIcon },
+  { id: 'routines', label: 'Routines', Icon: RoutineIcon },
   { id: 'settings', label: 'Settings', Icon: GearIcon },
 ];
 
 export function Panel(p: Props) {
   const [syncing, setSyncing] = useState(false);
   const remaining = useRemaining(p.focus);
+  const unreadNews = p.news.filter((n) => !n.read).length;
   const highCount = p.data.emails.filter((e) => e.level === 'high').length;
 
   const refresh = async () => {
@@ -100,7 +107,9 @@ export function Panel(p: Props) {
         {p.tab === 'today' && <TodayTab events={p.data.events} now={p.now} name={p.auth.profile?.name} focus={p.focus} focusMinutes={p.settings.focusMinutes} />}
         {p.tab === 'calendar' && <CalendarTab data={p.data} now={p.now} />}
         {p.tab === 'inbox' && <InboxTab emails={p.data.emails} now={p.now} />}
+        {p.tab === 'news' && <NewsTab news={p.news} now={p.now} onRoutines={() => p.onTab('routines')} />}
         {p.tab === 'chat' && <ChatTab chat={p.chat} setChat={p.setChat} name={p.name} />}
+        {p.tab === 'routines' && <RoutinesTab now={p.now} />}
         {p.tab === 'settings' && <SettingsTab settings={p.settings} onSettings={p.onSettings} onLiveColor={p.onLiveColor} auth={p.auth} onSignedOut={p.onSignedOut} />}
       </main>
 
@@ -110,6 +119,7 @@ export function Panel(p: Props) {
             <Icon />
             <span>{label}</span>
             {id === 'inbox' && highCount > 0 && <span className="badge">{highCount}</span>}
+            {id === 'news' && unreadNews > 0 && <span className="badge">{unreadNews > 99 ? '99+' : unreadNews}</span>}
           </button>
         ))}
       </nav>

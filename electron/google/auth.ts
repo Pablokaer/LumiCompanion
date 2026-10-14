@@ -20,6 +20,14 @@ export const SCOPES = [
   'https://www.googleapis.com/auth/gmail.compose',
 ];
 
+/** What Lumi cannot work without. The Docs and Gmail-compose scopes are optional. */
+const REQUIRED_SCOPES = ['calendar.events', 'gmail.readonly'];
+
+/** The required scopes missing from a granted-scope string (Google lets people untick them on the consent screen). */
+export function missingScopes(granted: string): string[] {
+  return REQUIRED_SCOPES.filter((name) => !granted.includes(`/auth/${name}`));
+}
+
 /** True when the stored token was granted a scope (older sign-ins predate newer scopes). */
 export function hasScope(name: 'documents' | 'gmail.compose'): boolean {
   return !!loadTokens()?.scope?.includes(`/auth/${name}`);
@@ -43,14 +51,31 @@ export async function getAuthState(): Promise<AuthState> {
     return { configured, signedIn: true, profile: await getProfile() };
   } catch (e) {
     // Google refused the tokens (revoked, or expired refresh token): really signed out.
-    if (e instanceof NotSignedInError) return { configured, signedIn: false };
+    if (e instanceof NotSignedInError) { dropSession(); return { configured, signedIn: false }; }
     // Anything else (no network yet right after the computer starts, Google unreachable) is temporary:
     // stay signed in and show the last known profile instead of asking for the login again.
     return { configured, signedIn: true, profile: tokens.profile ?? { name: '', email: '' } };
   }
 }
 
-export async function signIn(): Promise<AuthState> {
+/**
+ * Forgets a session Google no longer accepts: the stored tokens and the cached profile. Without this the
+ * cached profile keeps `getAuthState()` saying "signed in" while every request fails.
+ */
+export function dropSession() {
+  clearTokens();
+  profileCache = undefined;
+}
+
+let signInInFlight: Promise<AuthState> | undefined;
+
+/** Signs in through the browser. Clicking again while a sign-in is open joins it instead of starting a second one. */
+export function signIn(): Promise<AuthState> {
+  signInInFlight ??= doSignIn().finally(() => { signInInFlight = undefined; });
+  return signInInFlight;
+}
+
+async function doSignIn(): Promise<AuthState> {
   const config = getOAuthConfig();
   if (!config) throw new Error('Google OAuth client is not configured. See README → "Google Cloud setup".');
 
@@ -65,6 +90,8 @@ export async function signIn(): Promise<AuthState> {
       const error = url.searchParams.get('error');
       const returnedState = url.searchParams.get('state');
       const authCode = url.searchParams.get('code');
+      // Stray requests (a browser prefetch, a port scan) carry neither: ignore them and keep waiting for the real redirect.
+      if (!error && !authCode) { res.writeHead(404).end(); return; }
       const ok = !error && returnedState === state && !!authCode;
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(callbackPage(ok));
@@ -75,6 +102,7 @@ export async function signIn(): Promise<AuthState> {
     });
     let redirectUri = '';
     const timer = setTimeout(() => { server.close(); reject(new Error('Sign-in timed out.')); }, SIGN_IN_TIMEOUT_MS);
+    server.on('error', (e) => { clearTimeout(timer); reject(new Error(`Could not start the sign-in listener: ${e.message}`)); });
     server.listen(0, '127.0.0.1', () => {
       redirectUri = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
       const params = new URLSearchParams({
@@ -100,6 +128,9 @@ export async function signIn(): Promise<AuthState> {
     grant_type: 'authorization_code',
     code_verifier: verifier,
   });
+  if (typeof tokenRes.scope === 'string' && missingScopes(tokenRes.scope).length) {
+    throw new Error('Lumi needs access to your Google Calendar and Gmail (read-only) to work. Sign in again and leave every box ticked.');
+  }
   saveTokens(toStored(tokenRes));
   profileCache = undefined;
   return getAuthState();

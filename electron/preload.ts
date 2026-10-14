@@ -3,7 +3,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { LumiApi } from '../shared/types';
 
-const EVENTS = new Set(['reminder', 'data:updated', 'agent:confirm', 'agent:status', 'auth:changed', 'settings:changed', 'focus:changed', 'briefing', 'activity', 'update:state', 'cursor', 'dnd:state', 'weather:state', 'system', 'power', 'quick:show', 'ollama:setup']);
+const EVENTS = new Set(['reminder', 'data:updated', 'agent:confirm', 'agent:status', 'auth:changed', 'settings:changed', 'focus:changed', 'briefing', 'activity', 'update:state', 'cursor', 'dnd:state', 'weather:state', 'system', 'power', 'quick:show', 'ollama:setup', 'routines:updated', 'news:updated']);
 
 const api: LumiApi = {
   auth: {
@@ -66,6 +66,19 @@ const api: LumiApi = {
   docs: {
     pickFile: () => ipcRenderer.invoke('docs:pickFile'),
     answerFile: (path) => ipcRenderer.invoke('docs:answerFile', path),
+  },
+  routines: {
+    list: () => ipcRenderer.invoke('routines:list'),
+    save: (input) => ipcRenderer.invoke('routines:save', input),
+    remove: (id) => ipcRenderer.invoke('routines:remove', id),
+    run: (id) => ipcRenderer.invoke('routines:run', id),
+  },
+  news: {
+    list: () => ipcRenderer.invoke('news:list'),
+    open: (id) => ipcRenderer.invoke('news:open', id),
+    markRead: (id) => ipcRenderer.invoke('news:markRead', id),
+    dismiss: (id) => ipcRenderer.invoke('news:dismiss', id),
+    clearRead: () => ipcRenderer.invoke('news:clearRead'),
   },
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),

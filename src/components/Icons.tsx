@@ -56,3 +56,18 @@ export const ChevronRightIcon = (p: SVGProps<SVGSVGElement>) => (
 export const MicIcon = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
 );
+export const NewsIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M5 4h11a2 2 0 0 1 2 2v13H7a2 2 0 0 1-2-2V4Z" /><path d="M18 9h1.5A1.5 1.5 0 0 1 21 10.5V18a1 1 0 0 1-1 1h-2M8.5 8h6M8.5 11.5h6M8.5 15h3.5" /></svg>
+);
+export const RoutineIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M20 12a8 8 0 1 1-2.3-5.7" /><path d="M20 4v4.5h-4.5M12 8v4.5l3 1.8" /></svg>
+);
+export const TrashIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M4 7h16M10 3h4M6 7l1 13h10l1-13M10 11v6M14 11v6" /></svg>
+);
+export const PlayIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M8 5v14l11-7L8 5Z" /></svg>
+);
+export const EditIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4ZM13.5 6.5l4 4" /></svg>
+);

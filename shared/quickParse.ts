@@ -107,10 +107,14 @@ export function parseQuickEvent(input: string, now = new Date()): QuickParse {
       (m) => useDate(make(+m[2], MONTHS[m[1].toLowerCase()], m[3] ? +m[3] : undefined)));
   }
   if (!date) {
+    // The next month that really has that day ("dia 31" in a 30-day month means the 31st of a later month, not the 1st).
     const dayOfMonth = (day: number) => {
       if (day < 1 || day > 31) return false;
-      const thisMonth = new Date(today.getFullYear(), today.getMonth(), day);
-      setDate(thisMonth < today ? new Date(today.getFullYear(), today.getMonth() + 1, day) : thisMonth);
+      for (let ahead = 0; ahead < 13; ahead++) {
+        const d = new Date(today.getFullYear(), today.getMonth() + ahead, day);
+        if (d.getDate() === day && d >= today) { setDate(d); return; }
+      }
+      return false;
     };
     take(/\bdia\s+(\d{1,2})\b/i, (m) => dayOfMonth(+m[1]));
     if (!date) take(/\bon\s+the\s+(\d{1,2})(?:st|nd|rd|th)\b/i, (m) => dayOfMonth(+m[1]));

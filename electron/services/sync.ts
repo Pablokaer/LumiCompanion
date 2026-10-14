@@ -21,6 +21,8 @@ export class SyncService extends EventEmitter {
   private timers: NodeJS.Timeout[] = [];
   private scheduler = new ReminderScheduler(getSettings().reminderLeadMinutes);
   private aiCache = new Map<string, { score: number; reason?: string }>();
+  /** Bumped by reset(): an answer that arrives after sign-out belongs to the old account and is dropped. */
+  private epoch = 0;
 
   get data() { return this.snapshot; }
 
@@ -41,6 +43,7 @@ export class SyncService extends EventEmitter {
 
   reset() {
     this.stop();
+    this.epoch++;
     this.snapshot = { events: [], emails: [] };
     this.aiCache.clear();
     this.emit('updated', this.snapshot);
@@ -49,43 +52,51 @@ export class SyncService extends EventEmitter {
   setReminderLeads(leads: number[]) { this.scheduler.setLeads(leads); }
 
   async refreshAll(): Promise<DataSnapshot> {
+    const epoch = this.epoch;
     await Promise.all([this.refreshEvents(false), this.refreshEmails(false)]);
+    if (epoch !== this.epoch) return this.snapshot; // signed out meanwhile
     this.emit('updated', this.snapshot);
     this.checkReminders();
     return this.snapshot;
   }
 
   async refreshEvents(emit = true) {
+    const epoch = this.epoch;
     try {
       const events = await listUpcomingEvents(7);
+      if (epoch !== this.epoch) return;
       this.snapshot = { ...this.snapshot, events, lastSync: new Date().toISOString(), error: undefined };
     } catch (e) {
+      if (epoch !== this.epoch) return;
       this.handleError(e);
     }
     if (emit) { this.emit('updated', this.snapshot); this.checkReminders(); }
   }
 
   async refreshEmails(emit = true) {
+    const epoch = this.epoch;
     try {
       const settings = getSettings();
       const profile = await getProfile();
       const raw = await listRecentInbox(settings.emailLookbackDays);
+      if (epoch !== this.epoch) return;
       const scored = raw.map((e) => scoreEmail(e, profile.email));
       this.snapshot = { ...this.snapshot, emails: rankEmails(scored, this.aiScoresFor(scored)), lastSync: new Date().toISOString() };
       if (emit) this.emit('updated', this.snapshot);
-      if (settings.aiEmailTriage) void this.runAiTriage(scored);
+      if (settings.aiEmailTriage) void this.runAiTriage(scored, epoch);
     } catch (e) {
+      if (epoch !== this.epoch) return;
       this.handleError(e);
       if (emit) this.emit('updated', this.snapshot);
     }
   }
 
   /** Runs the local model over emails it has not rated yet, then re-ranks. */
-  private async runAiTriage(scored: ScoredEmail[]) {
+  private async runAiTriage(scored: ScoredEmail[], epoch: number) {
     const todo = scored.filter((e) => !this.aiCache.has(e.id)).sort((a, b) => b.score - a.score);
     if (!todo.length) return;
     const ai = await aiTriageEmails(todo, getSettings());
-    if (!Object.keys(ai).length) return;
+    if (epoch !== this.epoch || !Object.keys(ai).length) return;
     for (const [id, v] of Object.entries(ai)) this.aiCache.set(id, v);
     this.snapshot = { ...this.snapshot, emails: rankEmails(scored, this.aiScoresFor(scored)) };
     this.emit('updated', this.snapshot);
