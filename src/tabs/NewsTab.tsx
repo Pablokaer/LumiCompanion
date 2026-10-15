@@ -13,6 +13,8 @@ interface Props {
 
 export function NewsTab({ news, now, onRoutines }: Props) {
   const [routineId, setRoutineId] = useState<string>();
+  /** The report (from an instructions routine) that is open. */
+  const [openId, setOpenId] = useState<string>();
   const routines = [...new Map(news.map((n) => [n.routineId, n.routineName])).entries()];
   // A filter for a routine whose news is all gone falls back to "All".
   const active = routines.some(([id]) => id === routineId) ? routineId : undefined;
@@ -50,14 +52,25 @@ export function NewsTab({ news, now, onRoutines }: Props) {
           <ul className="news-list">
             {list.map((n) => (
               <li key={n.id} className={n.read ? 'read' : ''}>
-                <button className="news-item" onClick={() => api.news.open(n.id)} title={n.url}>
+                <button
+                  className="news-item"
+                  onClick={() => {
+                    if (!n.body) { void api.news.open(n.id); return; }
+                    setOpenId(openId === n.id ? undefined : n.id);
+                    if (!n.read) void api.news.markRead(n.id);
+                  }}
+                  aria-expanded={n.body ? openId === n.id : undefined}
+                  title={n.body ? undefined : n.url}
+                >
                   <div className="news-top">
                     {!n.read && <i className="unread-dot" aria-label="Unread" />}
                     <span className="news-source">{n.source ?? n.routineName}</span>
                     <span className="news-time">{timeAgo(new Date(n.publishedAt ?? n.addedAt).toISOString(), now)}</span>
                   </div>
                   <div className="news-title">{n.title}</div>
-                  {n.summary && <div className="news-summary">{n.summary}</div>}
+                  {n.body && openId === n.id
+                    ? <div className="news-body">{n.body}</div>
+                    : n.summary && <div className="news-summary">{n.summary}</div>}
                   {n.source && <div className="news-routine">{n.routineName}</div>}
                 </button>
                 <button className="icon-btn news-dismiss" onClick={() => api.news.dismiss(n.id)} aria-label="Remove" title="Remove"><CloseIcon width={14} height={14} /></button>

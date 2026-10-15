@@ -8,12 +8,13 @@ import { isAllowedExternalUrl } from '../shared/meeting';
 import type { RoutineInput } from '../shared/routines';
 import { isUnderstood, parseQuickEvent, toEventInput } from '../shared/quickParse';
 import { weatherSummary } from '../shared/weather';
-import { runAgent } from './agent/agent';
+import { runAgent, type AgentDeps } from './agent/agent';
 import { draftReply, eventFromText, suggestEventFromEmail } from './agent/mailTools';
 import { ensureOllama, ollamaStatus } from './agent/ollama';
 import { OllamaSetup } from './agent/ollamaSetup';
 import { answerAssignment } from './docs/assignment';
 import { SUPPORTED_EXTENSIONS } from './docs/extract';
+import { fetchSite, searchArticles, searchNews } from './routines/feeds';
 import { dropSession, getAuthState, getProfile, hasScope, signIn, signOut } from './google/auth';
 import { createEvent, listEventsInRange, listUpcomingEvents } from './google/calendar';
 import { createDraft, getFullEmail, searchEmails } from './google/gmail';
@@ -59,7 +60,22 @@ const dnd = new DndService({
   saveManual: (untilMs) => { updateSettings({ dndUntil: untilMs }); },
 });
 const weather = new WeatherService({ getSettings });
-const routines = new RoutineService({ storage: routineStorage, runner: { getSettings } });
+const routines = new RoutineService({
+  storage: routineStorage,
+  runner: {
+    getSettings,
+    // A "task" routine: the agent follows the user's instructions with nobody there, so it can only read.
+    runTask: async (routine) => {
+      if (!(await ollamaStatus(getSettings().ollamaUrl)).running) await tryStartOllama();
+      return runAgent([{ role: 'user', content: routine.target }], {
+        ...agentDeps(),
+        unattended: true,
+        onStatus: () => undefined,
+        confirm: async () => false,
+      });
+    },
+  },
+});
 const quick = new QuickCapture();
 /** Reminders that came due while she was asked to be quiet or you were focusing; shown when that ends. */
 let heldReminders: ReminderPayload[] = [];
@@ -237,8 +253,8 @@ async function bootstrap() {
 
   // ---- routines: daily jobs that put new articles in the News tab ----
   routines.on('changed', () => { send('routines:updated', routines.list()); send('news:updated', routines.news()); });
-  routines.on('news', (items: { title: string }[], routine: { name: string }) => {
-    notify(`${items.length} new in “${routine.name}”`, items.slice(0, 3).map((i) => `• ${i.title}`).join('\n'), () => { const w = getWindow(); w?.show(); w?.focus(); });
+  routines.on('news', (items: { title: string; summary?: string; body?: string }[], routine: { name: string }) => {
+    notify(items[0]?.body ? routine.name : `${items.length} new in “${routine.name}”`, items.slice(0, 3).map((i) => `• ${i.body ? i.summary ?? i.title : i.title}`).join('\n'), () => { const w = getWindow(); w?.show(); w?.focus(); });
   });
   routines.start();
 
@@ -272,6 +288,33 @@ async function bootstrap() {
   powerMonitor.on('on-battery', systemEvent('on-battery'));
 
   if ((await getAuthState()).signedIn) sync.start();
+}
+
+/** What the agent can use, for the chat and for routines. */
+function agentDeps(): AgentDeps {
+  return {
+    getSettings,
+    getProfile: () => getProfile(),
+    listEvents: (days) => (days <= 7 && sync.data.events.length ? Promise.resolve(sync.data.events) : listUpcomingEvents(days)),
+    getImportantEmails: async () => (sync.data.emails.length ? sync.data.emails : (await sync.refreshEmails(), sync.data.emails)),
+    searchEmails: (q) => searchEmails(q, 10),
+    createEvent: async (input) => { const ev = await createEvent(input); void sync.refreshEvents(); return ev; },
+    listRoutines: () => routines.list(),
+    saveRoutine: (input) => routines.save(input),
+    removeRoutine: (id) => routines.remove(id),
+    onStatus: (status: AgentStatus) => send('agent:status', status),
+    confirm: (req) =>
+      new Promise<boolean>((resolve) => {
+        const full: ConfirmRequest = { ...req, id: crypto.randomUUID() };
+        pendingConfirms.set(full.id, resolve);
+        send('agent:confirm', full);
+        // Auto-decline after 5 minutes so the agent never hangs forever.
+        setTimeout(() => { if (pendingConfirms.delete(full.id)) resolve(false); }, 5 * 60_000);
+      }),
+    searchNews: (q, language) => searchNews(q, language),
+    searchArticles: (q) => searchArticles(q),
+    readWebsite: (url) => fetchSite(url).then((r) => r.items),
+  };
 }
 
 function registerIpc() {
@@ -317,23 +360,7 @@ function registerIpc() {
   });
   ipcMain.handle('agent:send', async (_e, history: ChatMessage[]) => {
     if (!(await ollamaStatus(getSettings().ollamaUrl)).running) await tryStartOllama();
-    return runAgent(history, {
-      getSettings,
-      getProfile: () => getProfile(),
-      listEvents: (days) => (days <= 7 && sync.data.events.length ? Promise.resolve(sync.data.events) : listUpcomingEvents(days)),
-      getImportantEmails: async () => (sync.data.emails.length ? sync.data.emails : (await sync.refreshEmails(), sync.data.emails)),
-      searchEmails: (q) => searchEmails(q, 10),
-      createEvent: async (input) => { const ev = await createEvent(input); void sync.refreshEvents(); return ev; },
-      onStatus: (status: AgentStatus) => send('agent:status', status),
-      confirm: (req) =>
-        new Promise<boolean>((resolve) => {
-          const full: ConfirmRequest = { ...req, id: crypto.randomUUID() };
-          pendingConfirms.set(full.id, resolve);
-          send('agent:confirm', full);
-          // Auto-decline after 5 minutes so the agent never hangs forever.
-          setTimeout(() => { if (pendingConfirms.delete(full.id)) resolve(false); }, 5 * 60_000);
-        }),
-    });
+    return runAgent(history, agentDeps());
   });
 
   // --- Do not disturb ---

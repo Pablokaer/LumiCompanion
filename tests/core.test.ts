@@ -136,6 +136,12 @@ describe('agent', () => {
     getImportantEmails: async () => [],
     searchEmails: async () => [],
     createEvent: async (i) => ({ id: 'n', title: i.title, start: new Date().toISOString(), end: new Date().toISOString(), allDay: false }),
+    searchNews: async () => [],
+    searchArticles: async () => [],
+    readWebsite: async () => [],
+    listRoutines: () => [],
+    saveRoutine: () => [],
+    removeRoutine: () => [],
     confirm: async () => true,
     onStatus: () => undefined,
     ...over,
@@ -167,6 +173,66 @@ describe('agent', () => {
   it('creates events after confirmation', async () => {
     const res = await executeTool('create_calendar_event', { title: 'Lunch', start: '2026-10-13T12:00' }, baseDeps());
     expect(res).toContain('Created event');
+  });
+
+  it('creates a routine (not a calendar event) after confirmation', async () => {
+    const saved: unknown[] = [];
+    let asked: any;
+    const deps = baseDeps({
+      confirm: async (req) => { asked = req; return true; },
+      saveRoutine: (i) => { saved.push(i); return []; },
+      createEvent: async () => { throw new Error('must not touch the calendar'); },
+    });
+    const res = await executeTool('create_routine', { name: 'AI news', kind: 'news', target: 'LLM', time: '08:00' }, deps);
+    expect(res).toContain('Created routine');
+    expect(asked.kind).toBe('create_routine');
+    expect(saved).toHaveLength(1);
+  });
+
+  it('does not create a routine the user declines or that is invalid', async () => {
+    let saved = false;
+    const deps = baseDeps({ confirm: async () => false, saveRoutine: () => { saved = true; return []; } });
+    expect(await executeTool('create_routine', { name: 'X', kind: 'news', target: 'a' }, deps)).toMatch(/declined/);
+    expect(await executeTool('create_routine', { name: 'X', kind: 'site', target: 'not a url' }, baseDeps())).toMatch(/NOT created/);
+    expect(saved).toBe(false);
+  });
+
+  it('deletes a routine only when it exists and the user agrees', async () => {
+    const r = { id: 'r1', name: 'AI news', kind: 'news', target: 'LLM', language: 'en', frequency: 'daily', time: '08:00', maxItems: 5, useAi: true, enabled: true, createdAt: 0 } as const;
+    const removed: string[] = [];
+    const deps = baseDeps({ listRoutines: () => [r], removeRoutine: (id) => { removed.push(id); return []; } });
+    expect(await executeTool('delete_routine', { id: 'nope' }, deps)).toMatch(/no routine/);
+    expect(await executeTool('delete_routine', { id: 'r1' }, deps)).toContain('Deleted');
+    expect(removed).toEqual(['r1']);
+  });
+
+  it('a scheduled (unattended) run only gets read tools and cannot write', async () => {
+    const offered: string[][] = [];
+    const chat = async (o: any) => { offered.push(o.tools.map((t: any) => t.function.name)); return { role: 'assistant' as const, content: 'Report ✦' }; };
+    const out = await runAgent([{ role: 'user', content: 'brief me' }], baseDeps({ chat: chat as any, unattended: true }));
+    expect(out).toBe('Report ✦');
+    expect(offered[0]).toContain('search_news');
+    expect(offered[0]).not.toContain('create_calendar_event');
+    expect(offered[0]).not.toContain('create_routine');
+    let created = false;
+    const res = await executeTool('create_calendar_event', { title: 'X', start: '2026-10-13T10:00' }, baseDeps({ unattended: true, createEvent: async () => { created = true; throw new Error('no'); } }));
+    expect(res).toMatch(/cannot be done/);
+    expect(created).toBe(false);
+  });
+
+  it('an unattended run that gives up or answers nothing fails instead of saving junk', async () => {
+    const silent = async () => ({ role: 'assistant' as const, content: '' });
+    await expect(runAgent([{ role: 'user', content: 'x' }], baseDeps({ chat: silent as any, unattended: true }))).rejects.toThrow();
+    const looping = async () => ({ role: 'assistant' as const, content: '', tool_calls: [{ function: { name: 'list_routines', arguments: {} } }] });
+    await expect(runAgent([{ role: 'user', content: 'x' }], baseDeps({ chat: looping as any, unattended: true }))).rejects.toThrow(/steps/);
+  });
+
+  it('creates an instructions routine from the chat tool', async () => {
+    const saved: any[] = [];
+    const deps = baseDeps({ saveRoutine: (i) => { saved.push(i); return []; } });
+    const res = await executeTool('create_routine', { name: 'Briefing', kind: 'task', instructions: 'List my meetings.', time: '07:30' }, deps);
+    expect(res).toContain('Created routine');
+    expect(saved[0]).toMatchObject({ kind: 'task', target: 'List my meetings.', time: '07:30' });
   });
 
   it('AI triage tolerates garbage output', async () => {

@@ -12,7 +12,7 @@ Lumi is a little blue star that lives on your Windows or Mac desktop. It watches
 - **Sign in with Google:** one login gives access to Calendar and Gmail. It uses OAuth with PKCE and a loopback redirect, and tokens are encrypted with the OS keychain (`safeStorage`).
 - **Reminders:** configurable lead times (default 15 and 5 min). Lumi peeks out in front of your windows and shows a system notification.
 - **Important emails:** a heuristic score (Gmail "Important", starred, personal, direct-to-you, deadline/payment/meeting keywords in EN + PT, newsletter/promo penalties), blended with an optional local-AI triage.
-- **Local agent:** chat in English or Portuguese. Tools: list events, create event (**always asks you to confirm first**), get important emails, search Gmail.
+- **Local agent:** chat in English or Portuguese. Tools: list events, create event, get important emails, search Gmail, search news and Hacker News, read a website, and **list / create / change / pause / delete routines** (so you can say "create a routine with daily AI news at 8am" in Chat). Creating an event and every routine change **always asks you to confirm first**.
 - **Routines and News:** daily jobs she does by herself (a news search, developer articles, or a website to watch for new posts) whose results land in a **News** tab, one click away from the article. See [Routines and News](#routines-and-news).
 - **Calendar tab:** a full month view with previous / next / today navigation. Each day shows dots for its events, and selecting a day lists them underneath. Multi-day events appear on every day they cover. Weeks start on Monday.
 - **Widget views:** when shrunk, the widget can show the star in a circle (default), a browsable **monthly calendar** or a **daily agenda**. Reminders always appear. Choose it in Settings → Widget.
@@ -163,12 +163,17 @@ Limitations: a small local model can still write weak or wrong prose, and OpenAl
 
 Two tabs in the bottom bar work together. **Routines** is where you tell her what to look for; **News** is where she puts what she finds. Click an item in News to open the article in your browser (it is then marked read). A badge on the News tab counts what you have not read, and a system notification tells you when a routine found something (unless do-not-disturb is on).
 
-Routine types (Routines → **New routine**; the form also has ready-made ideas such as "AI & LLM news", "Technology news", "Big tech companies" and "Programming articles"):
+**From Chat.** You can also ask Lumi to manage routines: "every day at 7:30 summarise my agenda and important emails" (creates an instructions routine), "create a routine with daily AI news at 8am", "watch https://akitaonrails.com/ every 6 hours", "pause my AI news routine", "delete the Technology routine". She shows a confirmation card (type, search or address, schedule) and only saves after you click; a declined request changes nothing. The new routine appears in the Routines tab and does its first run right away.
+
+Routine types (Routines → **New routine**; the form also has ready-made ideas such as "Daily briefing", "AI & LLM news", "Technology news", "Big tech companies" and "Programming articles"):
+- **Instructions (default):** write, in your own words, exactly what Lumi should do each time ("Every morning, list my meetings for the day and the most important unread emails, and tell me what to prepare"), pick how often and at what time, and she does it by herself, like a scheduled task. The local agent follows your instructions with its **read-only** tools (your calendar, Gmail, news search, Hacker News and websites) and the finished report lands in **News**: click it to read the whole thing. Up to 4000 characters of instructions. Because nobody is there to approve anything, an instructions routine **cannot change anything** (it cannot create events or routines); if your text asks for that, the report says so. A run that gives no answer or needs too many steps is shown as a problem on the routine instead of saving an empty report. Quality depends on your Ollama chat model: small models handle short, concrete instructions best.
 - **News search:** searches Google News for your words (`OR` and quotes work) in English or Portuguese, looking at the last two days.
 - **Articles (Hacker News):** developer articles and discussions about your words, from the Hacker News search.
 - **Website to watch:** give an address such as `https://akitaonrails.com/` and every new post becomes an item in News. She reads the site's RSS/Atom feed (the one the page advertises, or a usual path such as `/feed` or `/index.xml`). Without a feed she compares the article links on the page. On its very first run she adds only the latest 3 posts, so News is not flooded with the whole archive.
 
 How often: every hour, every 6 hours, or every day at a time you choose. A daily routine whose time passed while the computer was off runs as soon as Lumi starts. Each run adds at most the number of items you set (1-10). For a website, posts that did not fit are shown on the next run; for the searches, the items passed over are not offered again. A new routine runs once straight away so you can see it work, **Run now** does it again whenever you like, and the switch pauses it. If a run fails (for example no internet) the routine shows the problem and tries again in 10 minutes.
+
+The settings *Most items per run* and *Pick and summarise with AI* do not apply to instructions routines (each run adds one report).
 
 For the two search types, **Pick and summarise with AI** (on by default) asks your local Ollama model to choose the most interesting items, skip repeated stories and write a one-sentence summary of each in the routine's language. If Ollama is not running, the newest items are used without a summary. The model only sees the headlines, and only an item number and a short summary are taken from its answer.
 
@@ -213,7 +218,7 @@ Occasional, kind nudges: drink water, stretch, rest your eyes, check your postur
 | Answer a file of questions | Chat → paperclip button |
 | Speak a message | Chat → microphone button |
 | Start a focus session | Today tab → Focus session |
-| Create a routine (search news, watch a website) | Routines tab → New routine |
+| Create a routine (search news, watch a website) | Routines tab → New routine, or just ask in Chat |
 | Read what the routines found | News tab (click an item to open the article) |
 | Add an event on a day | Calendar tab → select a day → Add event (or double-click the day) |
 | Filter emails by importance | Inbox → the Supernova / Bright / Faint buttons (combine them, or pick All). Your choice is remembered |
@@ -301,7 +306,7 @@ electron/              Main process (Node)
   updater.ts           Update service: electron-updater for Windows/AppImage, macUpdate.ts for macOS, release-page check elsewhere
   macUpdate.ts         macOS self-update: feed parsing, verified download, in-place swap script
   services/            sync.ts (polling), reminders.ts, emailScoring.ts, routines.ts (scheduler for the routines), time.ts, briefing.ts, focus.ts, dnd.ts (do-not-disturb + Windows full-screen probe via koffi), weather.ts (Open-Meteo + location)
-  routines/            feeds.ts (RSS/Atom parsing, feed discovery, Google News and Hacker News searches), runner.ts (one run: new items, AI pick and summary)
+  routines/            feeds.ts (RSS/Atom parsing, feed discovery, Google News and Hacker News searches), runner.ts (one run: new items, AI pick and summary, or the report of an instructions routine)
   quickCapture.ts      Global shortcut and the small quick-capture window
 shared/types.ts        Types shared by main + renderer
 shared/appearance.ts   Shape and accessory tables, slot rules and settings migration
@@ -347,7 +352,7 @@ scripts/oauth-json.mjs Builds google-oauth.json from .env or environment variabl
 - Google data is fetched directly from Google to your computer. There is no Lumi backend.
 - Tokens are encrypted at rest with the OS keychain (DPAPI on Windows, Keychain on macOS). Where the system cannot encrypt (for example some Linux setups without a keyring) they are kept in memory only and never written to disk, so you sign in again each time Lumi starts; plain-text token files left by older versions are deleted. You stay signed in across restarts (Settings → Account → "Stay signed in"; turn it off to sign in again every run). A missing network right after the computer starts never signs you out; only Google rejecting the sign-in does. Note: while your Google Cloud OAuth consent screen is in "Testing" status, Google itself expires the sign-in after 7 days; publish the app (or switch to "In production") to avoid that.
 - The renderer is sandboxed with `contextIsolation` and a strict CSP in production. It can only open `https` links to `*.google.com` and known video-meeting services externally.
-- The agent can only *read* email (`gmail.readonly`). Creating a calendar event always needs your click.
+- The agent can only *read* email (`gmail.readonly`). Creating a calendar event, and creating, changing or deleting a routine, always needs your click. Routines that run by themselves only get read-only tools, and text coming from emails or web pages is treated as data, not as instructions.
 - The Docs permission (`documents`) is used only to create the documents you ask for. Only files you pick in the file dialog are read.
 - The Gmail compose permission (`gmail.compose`) is used only to save drafts you ask for. Lumi never sends email.
 - The assignment feature sends short search queries (not your files) to OpenAlex.
