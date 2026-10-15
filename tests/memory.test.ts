@@ -83,25 +83,35 @@ describe('ollama keep-alive', () => {
   });
 });
 
-import { applyMemoryFlags } from '../electron/memoryFlags';
+import { applyMemoryFlags, lowMemoryEnabled, LOW_MEMORY_DISABLE_FEATURES } from '../electron/memoryFlags';
 
 describe('memory switches', () => {
   const fake = () => {
     const calls: string[] = [];
-    return { calls, app: { disableHardwareAcceleration: () => calls.push('no-gpu'), commandLine: { appendSwitch: (n: string) => calls.push(n) } } };
+    return { calls, app: { disableHardwareAcceleration: () => calls.push('no-gpu'), commandLine: { appendSwitch: (n: string, v?: string) => calls.push(v ? `${n}=${v}` : n) } } };
   };
 
-  it('turns on software rendering and low-end mode on Windows', () => {
+  it('applies the whole low-memory set on Windows, merged with the features that are always off', () => {
     const { app, calls } = fake();
-    expect(applyMemoryFlags(app, 'win32', {})).toBe(true);
-    expect(calls).toEqual(['no-gpu', 'enable-low-end-device-mode']);
+    expect(applyMemoryFlags(app, ['CalculateNativeWinOcclusion'], 'win32', {})).toBe(true);
+    expect(calls).toContain('no-gpu');
+    expect(calls).toContain('enable-low-end-device-mode');
+    expect(calls).toContain('in-process-gpu');
+    expect(calls).toContain(`disable-features=CalculateNativeWinOcclusion,${LOW_MEMORY_DISABLE_FEATURES.join(',')}`);
+    expect(calls.find((c) => c.startsWith('enable-features='))).toMatch(/NetworkServiceInProcess2/);
+    expect(calls.filter((c) => c.startsWith('disable-features=')).length).toBe(1); // Chromium keeps only one value
   });
 
-  it('leaves other platforms alone, and can be switched off', () => {
+  it('on other platforms only keeps the always-off features, unless LUMI_LOW_MEMORY=1', () => {
     const a = fake();
-    expect(applyMemoryFlags(a.app, 'darwin', {})).toBe(false);
-    expect(applyMemoryFlags(a.app, 'linux', {})).toBe(false);
-    expect(applyMemoryFlags(a.app, 'win32', { LUMI_HARDWARE_ACCELERATION: '1' })).toBe(false);
-    expect(a.calls).toEqual([]);
+    expect(applyMemoryFlags(a.app, ['CalculateNativeWinOcclusion'], 'darwin', {})).toBe(false);
+    expect(a.calls).toEqual(['disable-features=CalculateNativeWinOcclusion']);
+    expect(lowMemoryEnabled('darwin', { LUMI_LOW_MEMORY: '1' })).toBe(true);
+    expect(lowMemoryEnabled('linux', {})).toBe(false);
+  });
+
+  it('LUMI_HARDWARE_ACCELERATION=1 turns everything off, even where it was asked for', () => {
+    expect(lowMemoryEnabled('win32', { LUMI_HARDWARE_ACCELERATION: '1' })).toBe(false);
+    expect(lowMemoryEnabled('darwin', { LUMI_LOW_MEMORY: '1', LUMI_HARDWARE_ACCELERATION: '1' })).toBe(false);
   });
 });
