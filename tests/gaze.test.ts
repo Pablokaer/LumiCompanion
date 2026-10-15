@@ -161,17 +161,7 @@ describe('pointer store', () => {
 });
 
 describe('reaction gazes', () => {
-  const input = (mode: 'avert' | 'lock' | undefined, dx: number, dy = 0) => () => ({ cursor: { dx, dy }, cursorIdleMs: 0, follow: true, alert: false, mode });
-
-  it('looks away from the cursor when shy, and a little down', () => {
-    const right = new GazeController(rng(1));
-    run(right, 1, input('avert', 300));
-    expect(right.x).toBeLessThan(-1.8);
-    expect(right.y).toBeGreaterThan(1);
-    const left = new GazeController(rng(1));
-    run(left, 1, input('avert', -300));
-    expect(left.x).toBeGreaterThan(1.8);
-  });
+  const input = (mode: 'lock' | undefined, dx: number, dy = 0) => () => ({ cursor: { dx, dy }, cursorIdleMs: 0, follow: true, alert: false, mode });
 
   it('locks onto the cursor without fidgeting when about to bite', () => {
     const g = new GazeController(rng(2));

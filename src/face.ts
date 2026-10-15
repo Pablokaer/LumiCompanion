@@ -29,7 +29,6 @@ export function faceFor(opts: { mood: Mood; sleeping: boolean; dancing: boolean;
   // reactions to being petted, teased or stared at
   if (reaction === 'giggle') return { eyes: 'happy', mouth: 'laugh' };
   if (reaction === 'purr') return { eyes: 'happy', mouth: 'purr' };
-  if (reaction === 'shy') return { eyes: 'idle', mouth: 'shy' };
   if (reaction === 'bite') return { eyes: 'idle', mouth: 'chomp', brows: true };
   // how she feels about something she just told you (low battery, no internet, a tip…)
   if (tone === 'worried') return { eyes: 'idle', mouth: 'shy' };

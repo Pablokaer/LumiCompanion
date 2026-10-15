@@ -46,8 +46,8 @@ export interface GazeInput {
   follow: boolean;
   /** A reminder is on: she stares straight ahead. */
   alert: boolean;
-  /** 'avert': looks away from the cursor (shy). 'lock': fixes on it intently (about to bite). */
-  mode?: 'avert' | 'lock';
+  /** 'lock': fixes on the cursor intently (about to bite). */
+  mode?: 'lock';
 }
 
 /**
@@ -76,11 +76,6 @@ export class GazeController {
 
     if (input.alert) {
       this.tx = 0; this.ty = 0; tau = 0.12;
-    } else if (input.mode === 'avert') {
-      // looks away from the cursor and a little down, embarrassed
-      const away = input.cursor ? -Math.sign(input.cursor.dx || 1) : 1;
-      this.tx = away * MAX_X * 0.9; this.ty = MAX_DOWN * 0.6; tau = 0.1;
-      this.shiftAt = nowMs + 400;
     } else if (input.mode === 'lock' && input.cursor) {
       const g = gazeToward(input.cursor.dx, input.cursor.dy);
       this.tx = g.x; this.ty = g.y; nearTarget = 1; tau = 0.08;

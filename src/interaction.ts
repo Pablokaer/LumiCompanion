@@ -2,21 +2,19 @@
  * How the star reacts when the mouse passes over her. A small state machine, pure and driven by time
  * and pointer events so it can be unit tested with a seeded random generator.
  *
- * - The first reaction to a visit is always a giggle (never embarrassment: she needs to have reacted to
- *   you first). More passes in a short time escalate; rapid teasing makes her try to bite the cursor.
+ * - Passing over her makes her giggle. More passes in a short time escalate; rapid teasing makes her
+ *   try to bite the cursor.
  * - Moving slowly over her (petting) makes her purr until you stop or leave.
- * - Staring at her without moving makes her shy.
  */
 
-export type Reaction = 'none' | 'giggle' | 'shy' | 'purr' | 'bite';
+export type Reaction = 'none' | 'giggle' | 'purr' | 'bite';
 type Active = Exclude<Reaction, 'none'>;
 
 /** How long each timed reaction lasts. Purring lasts as long as the petting does. */
-export const REACTION_MS: Record<Exclude<Reaction, 'none' | 'purr'>, number> = { giggle: 1600, shy: 2300, bite: 1650 }; // a bite is three snaps of 0.55 s each
+export const REACTION_MS: Record<Exclude<Reaction, 'none' | 'purr'>, number> = { giggle: 1600, bite: 1650 }; // a bite is three snaps of 0.55 s each
 
 export const REACTION_LINES: Record<Exclude<Reaction, 'none'>, string[]> = {
   giggle: ['Hehehe! 😄', 'Haha, that tickles!', 'Hihi! Stop it!'],
-  shy: ['H-hey… 😳', 'O-oh! You\'re embarrassing me…', '…!! ///'],
   purr: ['Mmm… ♥', 'Purrrr…', 'Don\'t stop… ♥'],
   bite: ['Nom nom nom!', 'Gotcha! *chomp*', 'I\'m gonna bite that!'],
 };
@@ -25,8 +23,6 @@ export const REACTION_LINES: Record<Exclude<Reaction, 'none'>, string[]> = {
 export const MEMORY_MS = 14_000;
 /** Slow movement over her for this long counts as petting. */
 export const PET_AFTER_MS = 1100;
-/** Staying still over her for this long makes her shy. */
-export const STARE_AFTER_MS = 2400;
 /** The mouse must be this gentle (pixels per second) to count as petting; faster is just swiping. */
 export const PET_MIN_SPEED = 8;
 export const PET_MAX_SPEED = 220;
@@ -51,29 +47,22 @@ export class InteractionController {
   private slowMs = 0;
   private speed = 0;
   private lastMove?: { x: number; y: number; t: number };
-  private stillSince = 0;
-  private staredAt = false;
-  /** Whether she has reacted to this visit yet. Embarrassment only makes sense after that. */
-  private reacted = false;
 
   constructor(private rand: () => number = Math.random) {}
 
-  /** True while something needs `tick()`: a reaction is playing, or the pointer is on her (staring turns into shyness). */
+  /** True while something needs `tick()`: a reaction is playing. */
   get needsTick(): boolean {
-    return this.reaction !== 'none' || this.hovering;
+    return this.reaction !== 'none';
   }
 
   /** The pointer came onto her. Returns true when her reaction changed. */
   enter(now: number): boolean {
     this.hovering = true;
     const recent = this.enters.filter((t) => now - t < MEMORY_MS);
-    if (!recent.length) this.reacted = false; // nothing in memory: this is a fresh first contact
     this.enters = [...recent, now];
     this.slowMs = 0;
     this.speed = 0;
     this.lastMove = undefined;
-    this.stillSince = now;
-    this.staredAt = false;
     if (this.reaction !== 'none' || now - this.lastEnd < COOLDOWN_MS) return false;
     return this.start(this.pickForPass(this.enters.length), now);
   }
@@ -94,7 +83,6 @@ export class InteractionController {
     const dt = now - prev.t;
     const v = (Math.hypot(x - prev.x, y - prev.y) / dt) * 1000;
     this.speed = this.speed * 0.6 + v * 0.4;
-    if (v > 0) this.stillSince = now;
 
     if (this.speed > SWIPE_SPEED) this.slowMs = 0;
     else if (this.speed >= PET_MIN_SPEED && this.speed <= PET_MAX_SPEED) this.slowMs += dt;
@@ -105,25 +93,16 @@ export class InteractionController {
 
   /** Call regularly (about every 100 ms). Returns true when her reaction changed. */
   tick(now: number): boolean {
-    // staring without moving makes her shy
-    if (this.hovering && this.reaction === 'none' && !this.staredAt && this.lastMove && now - this.stillSince >= STARE_AFTER_MS && now - this.lastEnd >= COOLDOWN_MS) {
-      this.staredAt = true;
-      return this.start(this.reacted ? 'shy' : 'giggle', now);
-    }
     if (this.reaction === 'none') return false;
 
     if (this.reaction === 'purr') {
       const tooLong = now - this.startedAt > MAX_PURR_MS;
       const stopped = !this.hovering && now - this.leftAt > PURR_LINGER_MS;
-      if (tooLong || stopped) return this.finish(now, tooLong && this.rand() < 0.5);
+      if (tooLong || stopped) return this.finish(now);
       return false;
     }
 
-    if (now - this.startedAt >= REACTION_MS[this.reaction as keyof typeof REACTION_MS]) {
-      // after a failed bite she is sometimes embarrassed about it
-      const embarrassed = this.reaction === 'bite' && this.hovering && this.rand() < 0.4;
-      return this.finish(now, embarrassed);
-    }
+    if (now - this.startedAt >= REACTION_MS[this.reaction as keyof typeof REACTION_MS]) return this.finish(now);
     return false;
   }
 
@@ -148,15 +127,12 @@ export class InteractionController {
       for (const [reaction, w] of usable) { r -= w; if (r < 0) return reaction; }
       return usable[usable.length - 1][0];
     };
-    if (!this.reacted) return 'giggle'; // the very first reaction to a visit is never embarrassment
-    if (count <= 1) return choose([['giggle', 0.6], ['shy', 0.4]]);
-    if (count <= 3) return choose([['shy', 0.5], ['giggle', 0.5]]);
-    return choose([['bite', 0.55], ['shy', 0.2], ['giggle', 0.25]]);
+    if (count <= 3) return 'giggle';
+    return choose([['bite', 0.6], ['giggle', 0.4]]);
   }
 
   private start(reaction: Active, now: number): boolean {
     this.reaction = reaction;
-    this.reacted = true;
     this.startedAt = now;
     this.key++;
     const lines = REACTION_LINES[reaction];
@@ -166,11 +142,10 @@ export class InteractionController {
     return true;
   }
 
-  private finish(now: number, thenShy: boolean): boolean {
+  private finish(now: number): boolean {
     this.reaction = 'none';
     this.line = '';
     this.lastEnd = now;
-    if (thenShy) { this.staredAt = true; return this.start('shy', now); }
     return true;
   }
 }

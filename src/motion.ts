@@ -6,9 +6,9 @@
  */
 import type { DancePose } from './dance';
 
-export type BaseMotion = 'float' | 'slowFloat' | 'thinkFloat' | 'breathe' | 'bounce' | 'shake' | 'dance' | 'giggle' | 'shy' | 'purr' | 'bite';
+export type BaseMotion = 'float' | 'slowFloat' | 'thinkFloat' | 'breathe' | 'bounce' | 'shake' | 'dance' | 'giggle' | 'purr' | 'bite';
 
-export const BASE_MOTIONS: BaseMotion[] = ['float', 'slowFloat', 'thinkFloat', 'breathe', 'bounce', 'shake', 'dance', 'giggle', 'shy', 'purr', 'bite'];
+export const BASE_MOTIONS: BaseMotion[] = ['float', 'slowFloat', 'thinkFloat', 'breathe', 'bounce', 'shake', 'dance', 'giggle', 'purr', 'bite'];
 
 export type Weights = Record<BaseMotion, number>;
 
@@ -119,8 +119,6 @@ export function layerOffset(m: BaseMotion, t: number, ctx: MotionContext = {}): 
       const hop = Math.sin(Math.PI * 4 * since) ** 2; // smooth bounce, no corner at the bottom
       return { ...ZERO, y: -3.5 * hop * ramp, rot: 3 * wave * ramp, sy: -0.025 * hop * ramp, sx: 0.015 * hop * ramp };
     }
-    case 'shy': // shrinks a little and turns away from the cursor, fidgeting
-      return { x: -aimX * 3, y: 2, rot: -aimX * 4 + 1.5 * Math.sin(2 * Math.PI * 1.5 * t), sx: -0.06, sy: -0.06 };
     case 'purr': // leans into the cursor, swaying slowly
       return { x: aimX * 4, y: -1.5 * ripple(t, 1.6) - aimY * 1.5, rot: aimX * 5 + 2.5 * Math.sin(2 * Math.PI * 0.6 * t), sx: 0.02 * ripple(t, 0.8), sy: -0.015 * ripple(t, 0.8) };
     case 'bite': { // lunges at the cursor over and over

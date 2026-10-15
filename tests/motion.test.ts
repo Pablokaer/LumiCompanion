@@ -145,16 +145,13 @@ describe('reaction layers', () => {
     expect(lunges).toBe(3);
   });
 
-  it('shy turns away from the cursor and shrinks; purr leans into it', () => {
-    expect(at('shy', { aimX: 1 }).x).toBeLessThan(-2);
-    expect(at('shy', { aimX: -1 }).x).toBeGreaterThan(2);
-    expect(at('shy', { aimX: 1 }).sx).toBeLessThan(0);
+  it('purr leans into the cursor', () => {
     expect(at('purr', { aimX: 1 }).x).toBeGreaterThan(3);
     expect(at('purr', { aimX: -1 }).x).toBeLessThan(-3);
   });
 
   it('stay inside sensible bounds', () => {
-    for (const m of ['giggle', 'shy', 'purr', 'bite'] as BaseMotion[]) {
+    for (const m of ['giggle', 'purr', 'bite'] as BaseMotion[]) {
       for (let s = 0; s < 4; s += 0.037) {
         const p = blendPose(initialWeights(m), 5 + s, undefined, { aimX: 0.6, aimY: -0.8, since: s });
         expect(Math.abs(p.x)).toBeLessThanOrEqual(14);
@@ -218,7 +215,7 @@ describe('smoothness of the reactions', () => {
 
   it('keeps the weights a valid blend even when the target changes mid-flight', () => {
     const w = initialWeights('float');
-    const targets: BaseMotion[] = ['bite', 'shy', 'purr', 'dance', 'giggle', 'float', 'bite'];
+    const targets: BaseMotion[] = ['bite', 'purr', 'dance', 'giggle', 'float', 'bite'];
     for (let i = 0; i < 600; i++) {
       easeWeights(w, targets[Math.floor(i / 40) % targets.length], FRAME);
       const total = Object.values(w).reduce((a, b) => a + b, 0);

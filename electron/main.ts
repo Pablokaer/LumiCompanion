@@ -9,6 +9,7 @@ import type { RoutineInput } from '../shared/routines';
 import { isUnderstood, parseQuickEvent, toEventInput } from '../shared/quickParse';
 import { weatherSummary } from '../shared/weather';
 import { runAgent, type AgentDeps } from './agent/agent';
+import { applyMemoryFlags } from './memoryFlags';
 import { draftReply, eventFromText, suggestEventFromEmail } from './agent/mailTools';
 import { ensureOllama, ollamaStatus } from './agent/ollama';
 import { OllamaSetup } from './agent/ollamaSetup';
@@ -38,6 +39,8 @@ loadDotEnv(path.join(__dirname, '../..'));
 // The widget sits behind other windows; without this Chromium treats it as hidden and throttles its
 // timers and animation frames, which would make the dancing stutter.
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+// Software rendering and low-end mode: about half the memory (see memoryFlags.ts). Must run before the app is ready.
+applyMemoryFlags(app);
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();

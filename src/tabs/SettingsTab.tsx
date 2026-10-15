@@ -173,7 +173,7 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
       <section className="card">
         <h3>Life</h3>
         <Toggle label="Lively star" hint="She smiles, hops, waves, hums and looks around on her own." checked={settings.mascotLife} onChange={(v) => update({ mascotLife: v })} />
-        <Toggle label="React when I pet her" hint="Pass the mouse over her: she laughs, blushes, purrs, or tries to bite it." checked={settings.petReactions} onChange={(v) => update({ petReactions: v })} />
+        <Toggle label="React when I pet her" hint="Pass the mouse over her: she laughs, purrs, or tries to bite it." checked={settings.petReactions} onChange={(v) => update({ petReactions: v })} />
         <Toggle label="Eyes follow the mouse" hint="Her eyes track your cursor around the screen, and wander and blink on their own when it rests." checked={settings.followMouse} onChange={(v) => update({ followMouse: v })} />
         <Toggle label="Sleep when I am away" hint="Zzz… when the keyboard and mouse have been idle." checked={settings.sleepAfterMinutes > 0} onChange={(v) => update({ sleepAfterMinutes: v ? 3 : 0 })} />
         {settings.sleepAfterMinutes > 0 && (
