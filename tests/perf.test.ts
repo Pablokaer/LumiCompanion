@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('electron', () => ({ app: { getAppMetrics: () => [] } }));
 
-import { describeProcesses, formatSample, heapLine, summarizeMetrics } from '../electron/perf';
+import { describeProcesses, formatSample, heapLine, perfMode, summarizeMetrics } from '../electron/perf';
 
 const m = (type: string, percentCPUUsage: number, privateKb = 0) => ({ type, cpu: { percentCPUUsage }, memory: { privateBytes: privateKb } });
 
@@ -24,6 +24,11 @@ describe('perf log', () => {
     expect(formatSample({ renderer: 3.456, gpu: 0, main: 0.04, mem })).toBe(
       '[perf] renderer 3.5%  gpu 0.0%  main 0.0%  | memory: renderer 80 MB  gpu 30 MB  main 100 MB  other 10 MB  total 220 MB',
     );
+  });
+  it('reads LUMI_PERF: 0, false, off and empty mean off', () => {
+    for (const v of [undefined, '', '0', 'false', 'FALSE', 'off', 'no', ' 0 ']) expect(perfMode(v)).toBe('off');
+    for (const v of ['1', 'true', 'yes']) expect(perfMode(v)).toBe('basic');
+    expect(perfMode('detail')).toBe('detail');
   });
   it('lists each process and the main process heap for LUMI_PERF=detail', () => {
     const text = describeProcesses([{ type: 'Utility', name: 'Network Service', pid: 7, cpu: { percentCPUUsage: 0 }, memory: { privateBytes: 13_312 } }]);

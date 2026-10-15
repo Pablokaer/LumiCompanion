@@ -265,7 +265,8 @@ async function bootstrap() {
   if (getSettings().weather) weather.start();
 
   // ---- quick capture shortcut ----
-  quick.apply(getSettings().quickCapture, getSettings().quickCaptureShortcut);
+  const shortcut = quick.apply(getSettings().quickCapture, getSettings().quickCaptureShortcut);
+  if (!shortcut.ok) notify('Quick capture is not available', shortcut.error ?? 'Choose another shortcut in Settings → Quick capture.');
 
   // ---- tell the window when nobody can see her, so her animation loop stops ----
   // (The window keeps running in the background on purpose, so the page cannot tell by itself that it is hidden.)
