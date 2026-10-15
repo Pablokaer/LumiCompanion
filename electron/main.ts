@@ -38,9 +38,8 @@ loadDotEnv(path.join(__dirname, '../..'));
 
 // The widget sits behind other windows; without this Chromium treats it as hidden and throttles its
 // timers and animation frames, which would make the dancing stutter.
-app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
-// Software rendering and low-end mode: about half the memory (see memoryFlags.ts). Must run before the app is ready.
-applyMemoryFlags(app);
+// Also sets the memory switches (about 60% less memory, see memoryFlags.ts). Must run before the app is ready.
+applyMemoryFlags(app, ['CalculateNativeWinOcclusion']);
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();

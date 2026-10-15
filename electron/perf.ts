@@ -26,6 +26,19 @@ export const formatSample = (s: PerfSample) =>
   `[perf] renderer ${s.renderer.toFixed(1)}%  gpu ${s.gpu.toFixed(1)}%  main ${s.main.toFixed(1)}%` +
   `  | memory: renderer ${s.mem.renderer.toFixed(0)} MB  gpu ${s.mem.gpu.toFixed(0)} MB  main ${s.mem.main.toFixed(0)} MB  other ${s.mem.other.toFixed(0)} MB  total ${s.mem.total.toFixed(0)} MB`;
 
+/** One line per process (`LUMI_PERF=detail`): kind, name and memory, to see what the "other" bucket is made of. */
+export function describeProcesses(metrics: (MetricLike & { name?: string; pid?: number })[]): string {
+  return metrics
+    .map((m) => `  ${m.type}${m.name ? ` (${m.name})` : ''} pid ${m.pid ?? '?'}: ${((m.memory?.privateBytes || m.memory?.workingSetSize || 0) / 1024).toFixed(0)} MB`)
+    .join('\n');
+}
+
+const mbOf = (bytes: number) => (bytes / 1048576).toFixed(0);
+/** The main process's own numbers: JS heap in use / reserved, native memory held by Node (buffers etc.) and the resident set. */
+export function heapLine(u: NodeJS.MemoryUsage = process.memoryUsage()): string {
+  return `${mbOf(u.heapUsed)}/${mbOf(u.heapTotal)} MB, external ${mbOf(u.external)} MB, arrayBuffers ${mbOf(u.arrayBuffers)} MB, rss ${mbOf(u.rss)} MB`;
+}
+
 export const PERF_EVERY_MS = 5_000;
 
 /**
@@ -34,6 +47,10 @@ export const PERF_EVERY_MS = 5_000;
  */
 export function startPerfLog(log: (line: string) => void = console.log): (() => void) | undefined {
   if (!process.env.LUMI_PERF) return undefined;
-  const timer = setInterval(() => log(formatSample(summarizeMetrics(app.getAppMetrics()))), PERF_EVERY_MS);
+  const detail = process.env.LUMI_PERF === 'detail';
+  const timer = setInterval(() => {
+    const metrics = app.getAppMetrics();
+    log(formatSample(summarizeMetrics(metrics)) + (detail ? `\n${describeProcesses(metrics)}\n  main heap ${heapLine()}` : ''));
+  }, PERF_EVERY_MS);
   return () => clearInterval(timer);
 }
