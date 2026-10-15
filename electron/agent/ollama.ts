@@ -30,6 +30,9 @@ export async function ollamaStatus(baseUrl: string): Promise<OllamaStatus> {
   }
 }
 
+/** How long Ollama keeps the model in memory after Lumi's last request. */
+export const KEEP_ALIVE = '2m';
+
 export async function ollamaChat(opts: {
   baseUrl: string;
   model: string;
@@ -50,6 +53,8 @@ export async function ollamaChat(opts: {
       tools: opts.tools,
       format: opts.format,
       stream: false,
+      // The model is kept in memory this long after the last request (Ollama's own default is 5 minutes).
+      keep_alive: KEEP_ALIVE,
       options: { temperature: 0.3, ...(opts.numCtx ? { num_ctx: opts.numCtx } : {}) },
     }),
   });

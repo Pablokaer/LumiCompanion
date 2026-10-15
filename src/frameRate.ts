@@ -24,7 +24,7 @@ export interface FrameRateState {
   /** The background movement is one of the slow ones (see `isSlowMotion`). */
   slowMotion: boolean;
   dancing: boolean;
-  /** A reaction to the mouse (giggle, shy, purr, bite) is playing. */
+  /** A reaction to the mouse (giggle, purr, bite) is playing. */
   reacting: boolean;
   /** An action (wave, spin, hum, stretch, yawn…) is playing. */
   acting: boolean;

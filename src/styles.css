@@ -485,9 +485,8 @@ textarea:focus { border-color: var(--star); box-shadow: 0 0 0 3px rgba(92, 184, 
 
 /* reactions to being petted, teased or stared at */
 .cheek { transition: opacity 0.3s ease, transform 0.3s ease, fill 0.3s ease; transform-box: fill-box; transform-origin: center; }
-.is-shy .cheek { opacity: 1 !important; fill: #ff4d8a; transform: scale(1.4); }
 .mascot-hearts, .mascot-sweat { opacity: 0; transition: opacity 0.3s ease; }
-.is-purring .mascot-hearts, .is-shy .mascot-sweat, .is-worried .mascot-sweat { opacity: 1; }
+.is-purring .mascot-hearts, .is-worried .mascot-sweat { opacity: 1; }
 .heart { opacity: 0; animation: heart-float 1.8s ease-out infinite; animation-play-state: paused; }
 .heart.h2 { animation-delay: 0.6s; }
 .heart.h3 { animation-delay: 1.2s; }
@@ -498,7 +497,7 @@ textarea:focus { border-color: var(--star); box-shadow: 0 0 0 3px rgba(92, 184, 
   100% { opacity: 0; transform: translateY(-36px) scale(1.15) rotate(10deg); }
 }
 .mascot-sweat { animation: sweat-drop 1.6s ease-in infinite; animation-play-state: paused; }
-.is-shy .mascot-sweat, .is-worried .mascot-sweat { animation-play-state: running; }
+.is-worried .mascot-sweat { animation-play-state: running; }
 @keyframes sweat-drop { 0% { transform: translateY(0); } 100% { transform: translateY(16px); } }
 .chomp-mouth { transform-origin: 100px 118px; }
 .is-biting .chomp-mouth { animation: chomp 0.55s cubic-bezier(0.4, 0, 0.2, 1) 3; }

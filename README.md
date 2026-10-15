@@ -75,12 +75,11 @@ If Ollama is off, Calendar, Gmail, reminders and the heuristic email ranking sti
 
 **Reactions to the mouse.** Pass the mouse over her and she answers, and the more you do it the more she reacts:
 
-- the first pass always makes her **giggle** (laughing eyes and mouth, a little shaking). Being **embarrassed** (red cheeks, a sweat drop, looking away and shrinking back) only comes later, once she has already reacted to you;
-- several quick passes in a row (within about 14 seconds) escalate: she narrows her eyes with fierce eyebrows, fixes her gaze on the cursor and **tries to bite it**, lunging at it with her mouth open three times, and is sometimes embarrassed about it afterwards;
-- moving the mouse **slowly** over her counts as petting: she leans into the cursor, closes her eyes happily, purrs and little hearts float up, for as long as you keep going (she may blush if it goes on very long);
-- resting the mouse on her without moving makes her shy (or, if she has not reacted to you yet, giggle);
+- passing over her makes her **giggle** (laughing eyes and mouth, a little shaking);
+- several quick passes in a row (within about 14 seconds) escalate: she narrows her eyes with fierce eyebrows, fixes her gaze on the cursor and **tries to bite it**, lunging at it with her mouth open three times;
+- moving the mouse **slowly** over her counts as petting: she leans into the cursor, closes her eyes happily, purrs and little hearts float up, for as long as you keep going;
 - the movement is deliberately smooth: the direction she leans fades out as the mouse crosses her centre (so she never twitches), reactions build up from rest on a spring instead of starting with a jolt, and the jaw snaps and the giggle follow eased curves with no sharp corners;
-- she never repeats the same reaction twice in a row, forgets after a while, and says something fitting in her speech bubble. Turn it off in Settings → Life → "React when I pet her".
+- she forgets your passes after a while, and says something fitting in her speech bubble. Turn it off in Settings → Life → "React when I pet her".
 
 **Spontaneous actions.** Every few seconds Lumi picks something to do: smile, hop, look left and right, wave, wiggle, twinkle, hum (with music notes), stretch, peek, spin or cheer. She never repeats the same action twice in a row and stays calm (no random actions) while a reminder, the chat agent or a focus session is active. Small avatars (the chat) stay still.
 
@@ -98,13 +97,20 @@ If Ollama is off, Calendar, Gmail, reminders and the heuristic email ranking sti
 - **Platform notes:** works on Windows out of the box. macOS 13+ may ask for Screen Recording permission (Electron's system-audio capture requires it) and Linux needs PulseAudio/PipeWire. If capture is not possible the status in Settings says so and everything else keeps working.
 - With "reduce motion" enabled in the OS, the spontaneous actions and dance are skipped.
 
-Browser preview (`npm run preview:ui`) extras: `?gallery=1` shows every shape and accessory (add `&skin=sunset` or `&mood=happy`), `?shape=planet&acc=wizard,sunglasses` previews a look, `?skin=custom&color=22c55e` a custom colour, `?update=ready|available|downloading|error` the update banner and card, and for inspecting the animations: `?sleep=1` (start asleep), `?mouse=200,60` (pin the cursor position the eyes look at), `?reaction=giggle|shy|purr|bite` (pin a mouse reaction), `?music=1` (fake 120 BPM music) and `?action=wave` (pin one action: `smile`, `hop`, `look`, `wave`, `spin`, `wiggle`, `stretch`, `twinkle`, `hum`, `peek`, `cheer`, `wake`). Also: `?dnd=fullscreen|meeting|manual` (quiet mode), `?weather=rain|snow|hot|cold|fog|thunder|clear|night|off` and `?lat=-23` (weather and hemisphere), `?today=2026-12-24` (pretend it is another date, for seasonal looks), `?system=lock-screen|unlock-screen|suspend|resume|on-ac|on-battery` (a system reaction) and `#quick` for the quick-capture window.
+Browser preview (`npm run preview:ui`) extras: `?gallery=1` shows every shape and accessory (add `&skin=sunset` or `&mood=happy`), `?shape=planet&acc=wizard,sunglasses` previews a look, `?skin=custom&color=22c55e` a custom colour, `?update=ready|available|downloading|error` the update banner and card, and for inspecting the animations: `?sleep=1` (start asleep), `?mouse=200,60` (pin the cursor position the eyes look at), `?reaction=giggle|purr|bite` (pin a mouse reaction), `?music=1` (fake 120 BPM music) and `?action=wave` (pin one action: `smile`, `hop`, `look`, `wave`, `spin`, `wiggle`, `stretch`, `twinkle`, `hum`, `peek`, `cheer`, `wake`). Also: `?dnd=fullscreen|meeting|manual` (quiet mode), `?weather=rain|snow|hot|cold|fog|thunder|clear|night|off` and `?lat=-23` (weather and hemisphere), `?today=2026-12-24` (pretend it is another date, for seasonal looks), `?system=lock-screen|unlock-screen|suspend|resume|on-ac|on-battery` (a system reaction) and `#quick` for the quick-capture window.
 
 ## Performance and battery
 
 Lumi is meant to be light on a laptop. The details are in the sections below; this is how to check them.
 
-**Measuring.** Start the app with `LUMI_PERF=1` (for example `LUMI_PERF=1 npm run dev`, or `$env:LUMI_PERF=1` in PowerShell) and it prints the CPU use of the window (renderer), the GPU process and the main process every 5 seconds, in percent of one core. It is a development aid and does nothing otherwise. `npx electron scripts/perf-measure.cjs` (with `npm run preview:ui` running) measures the widget in five situations (idle, covered, asleep, dancing, panel open) and prints a table; `MAC_LIKE=1` makes it use the macOS window policy.
+**Measuring.** Start the app with `LUMI_PERF=1` (for example `LUMI_PERF=1 npm run dev`, or `$env:LUMI_PERF=1` in PowerShell) and it prints the CPU use of the window (renderer), the GPU process and the main process every 5 seconds, in percent of one core, together with the **memory** (MB, private bytes) of each of those, of everything else (`other`) and the total. It is a development aid and does nothing otherwise. `npx electron scripts/perf-measure.cjs` (with `npm run preview:ui` running) measures the widget in five situations (idle, covered, asleep, dancing, panel open) and prints a table; `MAC_LIKE=1` makes it use the macOS window policy.
+
+**Memory.** The big consumers are, in this order: the Ollama model (a separate program, usually several GB while loaded), the speech model, and the Electron processes (window, GPU, main). What Lumi does about it:
+- **Software rendering and low-end mode (Windows).** The biggest saving. Lumi turns off GPU hardware acceleration and enables Chromium's low-end-device mode (`electron/memoryFlags.ts`, applied before the app is ready). Measured with `LUMI_PERF=1` on the real app, the total goes from about **495 MB to about 210 MB** (GPU process 220 MB → 17 MB, window 104 MB → 70 MB, helper processes 89 MB → 39 MB), the widget looks the same (including the transparent window, glow and blur) and CPU use is not higher, also while dancing. It is only applied on Windows, where it was measured. Set `LUMI_HARDWARE_ACCELERATION=1` to get the old behaviour back (for example if your graphics driver handles the transparent window better that way).
+- Every request tells Ollama to unload the model **2 minutes** after the last use (its default is 5), so the AI memory is returned soon after you stop chatting. The next message simply loads it again, which takes a few seconds.
+- The Whisper speech model (a few hundred MB) is unloaded **3 minutes** after the last transcription and reloaded from disk when you use the microphone again.
+- The quick-capture window is a whole extra window process. It is closed **1 minute** after it is hidden and rebuilt the next time you press the shortcut.
+- To use less memory with Ollama, set the same model for all tasks (Settings → Local AI (Ollama)): separate chat, triage and writing models can be loaded at the same time, and a smaller model (for example a 3B-4B one) costs a lot less than an 8B one.
 
 **Animation frame rate.** The mascot's loop draws only as often as she needs: 60 fps while dancing, reacting, doing an action, following the cursor, easing between states or with the panel open; 30 fps while she floats quietly; 15 fps while asleep; and not at all while the window is hidden, minimised or the screen is locked. Speed never depends on the frame rate, so the motion looks the same. Her position is measured once (and when the layout changes) instead of on every frame, DOM styles are only written when a value changed, and the reaction timer stops while nobody can see her.
 
@@ -126,7 +132,7 @@ The colour is previewed live everywhere while you drag and saved when you let go
 
 Click the microphone button in Chat, speak, and click it again. Your speech is turned into text in the message box, so you can edit it before sending.
 
-- Transcription runs **on your computer** with Whisper (via transformers.js). The first use downloads the speech model (about 150 MB) and caches it in Lumi's user-data folder; after that it works offline.
+- Transcription runs **on your computer** with Whisper (via transformers.js). The first use downloads the speech model (about 150 MB) and caches it in Lumi's user-data folder; after that it works offline. The model is kept in memory for 3 minutes after you stop and then released.
 - Pick the spoken language in Settings → Local AI → "Voice input language". "Same as my computer" follows your OS language, and falls back to English for unsupported languages.
 - Lumi asks the OS for microphone access. If it is blocked, allow it in your system privacy settings.
 - Recordings are limited to 60 seconds and are never saved.
@@ -327,7 +333,7 @@ src/                   React renderer (space UI)
   Gallery.tsx          Browser-preview gallery of every shape and accessory (`?gallery=1`)
   behavior.ts          Pure logic for the star's spontaneous actions
   face.ts              Pure logic for her expression (eyes and mouth) and overall mood
-  interaction.ts       Pure state machine for her reactions to the mouse (giggle, blush, purr, bite)
+  interaction.ts       Pure state machine for her reactions to the mouse (giggle, purr, bite)
   gaze.ts              Pure controllers for where her eyes look (cursor following, wandering) and when she blinks
   dance.ts             Pure choreography: pose for a position in the beat
   motion.ts            Motion engine: blends float/breathe/bounce/shake/dance poses with smoothly changing weights

@@ -162,7 +162,7 @@ export function Mascot({ mood = 'idle', size = 140, onClick, title }: Props) {
       if (css !== written.body) { body.style.transform = css; written.body = css; }
 
       // eyes: follow the mouse or wander, widen when it is close, and blink at random
-      const mode = look.reaction === 'shy' ? 'avert' : look.reaction === 'bite' ? 'lock' : undefined;
+      const mode = look.reaction === 'bite' ? 'lock' : undefined;
       const g = gaze.update(dt, now, { cursor, cursorIdleMs: now - pointer.at, follow: look.follow, alert: look.alert, mode });
       const closed = blink.update(now);
       const lid = `scaleY(${(1 - 0.94 * closed).toFixed(3)})`;
@@ -229,7 +229,7 @@ export function Mascot({ mood = 'idle', size = 140, onClick, title }: Props) {
     'mascot', `mood-${face.mouth}`, smooth ? 'js-motion' : '',
     sleeping ? 'is-sleeping' : '', dancing ? 'is-dancing' : '', action === 'hum' ? 'is-humming' : '',
     life.noticeTone === 'worried' && !quiet && reaction === 'none' ? 'is-worried' : '',
-    reaction === 'giggle' ? 'is-giggling' : reaction === 'shy' ? 'is-shy' : reaction === 'purr' ? 'is-purring' : reaction === 'bite' ? 'is-biting' : '',
+    reaction === 'giggle' ? 'is-giggling' : reaction === 'purr' ? 'is-purring' : reaction === 'bite' ? 'is-biting' : '',
   ].filter(Boolean).join(' ');
 
   return (

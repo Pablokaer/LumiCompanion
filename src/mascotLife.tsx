@@ -24,7 +24,7 @@ export interface LifeState {
   expanded: boolean;
   /** How she feels about the notice she is showing, if any. */
   noticeTone?: NoticeTone;
-  /** How she is reacting to the mouse passing over her (laugh, blush, purr, bite). */
+  /** How she is reacting to the mouse passing over her (laugh, purr, bite). */
   reaction: Reaction;
   reactionKey: number;
   reactionLine: string;

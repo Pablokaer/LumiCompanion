@@ -8,10 +8,13 @@ import path from 'node:path';
 
 const WIDTH = 560;
 const HEIGHT = 400;
+/** A hidden window is a whole extra renderer process; it is closed after this long unused and rebuilt on the next use. */
+export const IDLE_DESTROY_MS = 60_000;
 
 export class QuickCapture {
   private win: BrowserWindow | null = null;
   private registered?: string;
+  private idleTimer?: NodeJS.Timeout;
 
   /**
    * Registers (or unregisters) the global shortcut. Resolves with an error message when the shortcut
@@ -38,6 +41,7 @@ export class QuickCapture {
   }
 
   show() {
+    clearTimeout(this.idleTimer);
     const win = this.win && !this.win.isDestroyed() ? this.win : this.create();
     const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
     const area = display.workArea;
@@ -51,10 +55,22 @@ export class QuickCapture {
   }
 
   hide() {
-    if (this.win && !this.win.isDestroyed()) this.win.hide();
+    if (!this.win || this.win.isDestroyed()) return;
+    this.win.hide();
+    clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => this.release(), IDLE_DESTROY_MS);
+    this.idleTimer.unref?.();
+  }
+
+  /** Closes the hidden window (and its process) if nobody is using it. */
+  release() {
+    clearTimeout(this.idleTimer);
+    if (this.win && !this.win.isDestroyed() && !this.win.isVisible()) this.win.destroy();
+    if (!this.win || this.win.isDestroyed()) this.win = null;
   }
 
   dispose() {
+    clearTimeout(this.idleTimer);
     if (this.registered) globalShortcut.unregister(this.registered);
     this.registered = undefined;
     if (this.win && !this.win.isDestroyed()) this.win.destroy();
@@ -87,7 +103,7 @@ export class QuickCapture {
     });
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     win.webContents.on('will-navigate', (e) => e.preventDefault());
-    win.on('blur', () => win.hide());
+    win.on('blur', () => this.hide());
     win.on('closed', () => { this.win = null; });
     if (process.env.VITE_DEV_SERVER_URL) void win.loadURL(`${process.env.VITE_DEV_SERVER_URL}#quick`);
     else void win.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: 'quick' });

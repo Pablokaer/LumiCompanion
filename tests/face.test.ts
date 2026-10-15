@@ -52,10 +52,9 @@ describe('mood', () => {
 describe('reaction expressions', () => {
   const base = { mood: 'idle' as Mood, sleeping: false, dancing: false, action: 'none' as const };
 
-  it('laughs and purrs with happy closed eyes, and keeps her eyes open when shy or about to bite', () => {
+  it('laughs and purrs with happy closed eyes, and keeps her eyes open when about to bite', () => {
     expect(faceFor({ ...base, reaction: 'giggle' })).toEqual({ eyes: 'happy', mouth: 'laugh' });
     expect(faceFor({ ...base, reaction: 'purr' })).toEqual({ eyes: 'happy', mouth: 'purr' });
-    expect(faceFor({ ...base, reaction: 'shy' })).toEqual({ eyes: 'idle', mouth: 'shy' });
     expect(faceFor({ ...base, reaction: 'bite' })).toEqual({ eyes: 'idle', mouth: 'chomp', brows: true });
   });
 
@@ -66,6 +65,6 @@ describe('reaction expressions', () => {
   });
 
   it('only the bite has eyebrows', () => {
-    for (const r of ['none', 'giggle', 'purr', 'shy'] as const) expect(faceFor({ ...base, reaction: r }).brows).toBeFalsy();
+    for (const r of ['none', 'giggle', 'purr'] as const) expect(faceFor({ ...base, reaction: r }).brows).toBeFalsy();
   });
 });
