@@ -41,13 +41,21 @@ export function heapLine(u: NodeJS.MemoryUsage = process.memoryUsage()): string 
 
 export const PERF_EVERY_MS = 5_000;
 
+/** What `LUMI_PERF` asks for: nothing (unset, empty, 0, false or off), the normal line, or `detail`. */
+export function perfMode(value: string | undefined): 'off' | 'basic' | 'detail' {
+  const v = (value ?? '').trim().toLowerCase();
+  if (!v || v === '0' || v === 'false' || v === 'off' || v === 'no') return 'off';
+  return v === 'detail' ? 'detail' : 'basic';
+}
+
 /**
  * Development aid: with `LUMI_PERF=1` the CPU use of each process kind is printed every 5 seconds, so a change
  * can be judged by numbers (idle, covered, asleep, dancing, panel open). Does nothing otherwise.
  */
 export function startPerfLog(log: (line: string) => void = console.log): (() => void) | undefined {
-  if (!process.env.LUMI_PERF) return undefined;
-  const detail = process.env.LUMI_PERF === 'detail';
+  const mode = perfMode(process.env.LUMI_PERF);
+  if (mode === 'off') return undefined;
+  const detail = mode === 'detail';
   const timer = setInterval(() => {
     const metrics = app.getAppMetrics();
     log(formatSample(summarizeMetrics(metrics)) + (detail ? `\n${describeProcesses(metrics)}\n  main heap ${heapLine()}` : ''));

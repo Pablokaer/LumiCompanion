@@ -111,13 +111,18 @@ export function useMascotLife({ lively, sleepAfterMinutes, idleSeconds, music, r
   const [waking, setWaking] = useState(false);
   const wasSleeping = useRef(false);
   useEffect(() => {
-    if (wasSleeping.current && !sleeping) {
+    if (sleeping) {
+      // Asleep again (the music stopped, say) before the stretch was over: it must not stay on while she sleeps.
+      wasSleeping.current = true;
+      setWaking(false);
+      return;
+    }
+    if (wasSleeping.current) {
+      wasSleeping.current = false;
       setWaking(true);
       const t = window.setTimeout(() => setWaking(false), WAKE_MS);
-      wasSleeping.current = sleeping;
       return () => window.clearTimeout(t);
     }
-    wasSleeping.current = sleeping;
   }, [sleeping]);
 
   // Spontaneous actions: pick one, let it play, rest a moment, repeat.

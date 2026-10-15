@@ -1,12 +1,12 @@
 /**
  * Chromium switches that trade a little machinery for a lot less memory. Measured on Windows with the real app
- * (`LUMI_PERF=1`, widget idle): about 495 MB in total, about 175 MB with everything below. No visible difference
+ * (`LUMI_PERF=1`, widget idle): about 495 MB in total, about 162 MB with everything below. No visible difference
  * (the transparent window and its glow, blur and gradients look the same) and no higher CPU use.
  *
  * - Software rendering and low-end device mode: the GPU process drops from ~220 MB to ~17 MB and the window's
  *   renderer from ~104 MB to ~70 MB.
- * - The network, audio and video-capture services run inside the main process instead of in three helper
- *   processes (about 40 MB less), and so does the GPU work (about 16 MB less).
+ * - The network, audio and video-capture services and the GPU work run inside the main process instead of in
+ *   four separate processes (about 55 MB less in all).
  *
  * Applied on Windows, where it was measured. On macOS and Linux it is off by default (not measured there):
  * `LUMI_LOW_MEMORY=1` turns it on to try it. `LUMI_HARDWARE_ACCELERATION=1` turns it off everywhere.
