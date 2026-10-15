@@ -3,8 +3,11 @@
  * an article search, or a website to watch) and puts them in the News tab.
  */
 
-/** news: a news search. articles: developer articles (Hacker News). site: a website or feed to watch for new posts. */
-export type RoutineKind = 'news' | 'articles' | 'site';
+/**
+ * news: a news search. articles: developer articles (Hacker News). site: a website or feed to watch for new posts.
+ * task: free-text instructions the companion carries out by herself and reports in News.
+ */
+export type RoutineKind = 'news' | 'articles' | 'site' | 'task';
 export type RoutineFrequency = 'hourly' | 'every6h' | 'daily';
 export type RoutineLanguage = 'en' | 'pt';
 
@@ -12,7 +15,7 @@ export interface Routine {
   id: string;
   name: string;
   kind: RoutineKind;
-  /** news / articles: what to search for. site: the address of the page or feed. */
+  /** news / articles: what to search for. site: the address of the page or feed. task: the instructions. */
   target: string;
   /** Language of the news search and of the summaries. */
   language: RoutineLanguage;
@@ -46,6 +49,8 @@ export interface NewsItem {
   /** The site or publisher. */
   source?: string;
   summary?: string;
+  /** The full report of a "task" routine (it has no address to open). */
+  body?: string;
   /** When the article was published, epoch ms, when known. */
   publishedAt?: number;
   addedAt: number;
@@ -73,8 +78,10 @@ const FREQUENCY_MS: Record<Exclude<RoutineFrequency, 'daily'>, number> = { hourl
 /** After a failed run, wait this long before trying again. */
 export const RETRY_AFTER_MS = 10 * 60_000;
 export const MAX_ROUTINES = 30;
+/** Longest instructions of a "task" routine. */
+export const MAX_INSTRUCTIONS = 4000;
 
-const KINDS: RoutineKind[] = ['news', 'articles', 'site'];
+const KINDS: RoutineKind[] = ['news', 'articles', 'site', 'task'];
 const FREQUENCIES: RoutineFrequency[] = ['hourly', 'every6h', 'daily'];
 
 /** Whether a routine should run now. A daily one runs once per day, after its time (also late, if the computer was off). */
@@ -109,14 +116,14 @@ export function buildRoutine(input: RoutineInput, existing?: Routine, id = '', n
   if (!name) throw new Error('Give the routine a name.');
   const kind = input.kind ?? existing?.kind ?? 'news';
   if (!KINDS.includes(kind)) throw new Error('Unknown routine type.');
-  const rawTarget = (input.target ?? existing?.target ?? '').trim().slice(0, 300);
+  const rawTarget = (input.target ?? existing?.target ?? '').trim().slice(0, kind === 'task' ? MAX_INSTRUCTIONS : 300);
   let target = rawTarget;
   if (kind === 'site') {
     const url = normalizeUrl(rawTarget);
     if (!url) throw new Error('Enter the website address, for example https://akitaonrails.com/');
     target = url;
   } else if (!rawTarget) {
-    throw new Error('Say what to search for.');
+    throw new Error(kind === 'task' ? 'Write the instructions for the routine.' : 'Say what to search for.');
   }
   const frequency = input.frequency ?? existing?.frequency ?? 'daily';
   if (!FREQUENCIES.includes(frequency)) throw new Error('Unknown frequency.');
@@ -132,7 +139,7 @@ export function buildRoutine(input: RoutineInput, existing?: Routine, id = '', n
     frequency,
     time,
     maxItems,
-    useAi: kind === 'site' ? false : (input.useAi ?? existing?.useAi ?? true),
+    useAi: kind === 'site' || kind === 'task' ? false : (input.useAi ?? existing?.useAi ?? true),
     enabled: input.enabled ?? existing?.enabled ?? true,
     createdAt: existing?.createdAt ?? now,
     // Changing what it looks at starts it over.

@@ -8,6 +8,8 @@ export interface RunnerDeps {
   getSettings(): Settings;
   /** Overridable for tests. */
   find?(routine: Routine): Promise<FeedItem[]>;
+  /** Carries out a "task" routine's instructions and returns the report. */
+  runTask?(routine: Routine): Promise<string>;
   chat?: typeof ollamaChat;
   makeId(url: string): string;
   now?(): number;
@@ -36,7 +38,31 @@ export function findItems(routine: Routine): Promise<FeedItem[]> {
   return searchNews(routine.target, routine.language);
 }
 
+/** A task routine: the agent follows the instructions and the report becomes one item in News. */
+async function runTaskRoutine(routine: Routine, seen: ReadonlySet<string>, deps: RunnerDeps): Promise<RunResult> {
+  if (!deps.runTask) throw new Error('Tasks are not available right now.');
+  const report = (await deps.runTask(routine)).trim();
+  if (!report) throw new Error('The routine finished without a report.');
+  const now = deps.now?.() ?? Date.now();
+  const [firstLine] = report.split('\n');
+  return {
+    items: [{
+      id: deps.makeId(`task:${routine.id}:${now}`),
+      routineId: routine.id,
+      routineName: routine.name,
+      title: routine.name,
+      url: '',
+      summary: firstLine.replace(/^[#*\s-]+/, '').slice(0, 200),
+      body: report.slice(0, 8000),
+      addedAt: now,
+      read: false,
+    }],
+    seen: [...seen],
+  };
+}
+
 export async function runRoutine(routine: Routine, seen: ReadonlySet<string>, deps: RunnerDeps): Promise<RunResult> {
+  if (routine.kind === 'task') return runTaskRoutine(routine, seen, deps);
   const found = await (deps.find ?? findItems)(routine);
   const now = deps.now?.() ?? Date.now();
   const byUrl = new Map<string, FeedItem>();

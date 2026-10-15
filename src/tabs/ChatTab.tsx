@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react';
+import { Fragment, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react';
 import type { ChatMessage, OllamaStatus } from '../../shared/types';
 import { api } from '../api';
 import type { ChatState } from '../App';
@@ -10,6 +10,7 @@ const SUGGESTIONS = [
   'What’s on my calendar today?',
   'Which emails matter most right now?',
   'Schedule “Call with Ana” tomorrow at 15:00',
+  'Create a routine with daily AI news at 8am',
 ];
 
 const TOOL_LABEL: Record<string, string> = {
@@ -145,17 +146,14 @@ ${notes}` }] }));
         ))}
 
         {chat.confirm && (
-          <div className="confirm-card" role="dialog" aria-label="Confirm event">
+          <div className="confirm-card" role="dialog" aria-label="Confirm action">
             <div className="confirm-title">{chat.confirm.title}</div>
             <dl>
-              <dt>When</dt>
-              <dd>{chat.confirm.details.start.replace('T', ' at ')}{chat.confirm.details.end ? ` → ${chat.confirm.details.end.replace('T', ' ')}` : chat.confirm.details.durationMinutes ? ` · ${chat.confirm.details.durationMinutes} min` : ''}</dd>
-              {chat.confirm.details.location && <><dt>Where</dt><dd>{chat.confirm.details.location}</dd></>}
-              {chat.confirm.details.description && <><dt>Notes</dt><dd>{chat.confirm.details.description}</dd></>}
+              {chat.confirm.rows.map((r) => <Fragment key={r.label}><dt>{r.label}</dt><dd>{r.value}</dd></Fragment>)}
             </dl>
             <div className="confirm-actions">
               <button className="pill-btn ghost" onClick={() => answerConfirm(false)}>Not now</button>
-              <button className="primary-btn" onClick={() => answerConfirm(true)}>Add to calendar</button>
+              <button className="primary-btn" onClick={() => answerConfirm(true)}>{chat.confirm.confirmLabel}</button>
             </div>
           </div>
         )}

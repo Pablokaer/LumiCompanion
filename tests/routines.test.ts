@@ -349,3 +349,30 @@ describe('the routine service', () => {
     expect(() => service.save({ ...input, enabled: false })).toThrow(/up to 30/);
   });
 });
+
+describe('instruction (task) routines', () => {
+  const task = (patch: Partial<Routine> = {}) => routine({ kind: 'task', target: 'Every day list my meetings.', ...patch });
+
+  it('keeps long instructions and requires them', () => {
+    const long = 'x'.repeat(3000);
+    expect(buildRoutine({ name: 'T', kind: 'task', target: long }).target).toHaveLength(3000);
+    expect(() => buildRoutine({ name: 'T', kind: 'task', target: '  ' })).toThrow(/instructions/);
+    expect(buildRoutine({ name: 'T', kind: 'task', target: 'do it', useAi: true }).useAi).toBe(false);
+  });
+
+  it('runs the agent and turns its report into one News item', async () => {
+    const seen: string[] = [];
+    const res = await runRoutine(task(), new Set(), {
+      getSettings: () => settings, makeId: (u) => u, now: () => 5,
+      runTask: async (r) => { seen.push(r.target); return '## Today\n- 10:00 Standup'; },
+    });
+    expect(seen).toEqual(['Every day list my meetings.']);
+    expect(res.items).toHaveLength(1);
+    expect(res.items[0]).toMatchObject({ title: 'Test', url: '', body: '## Today\n- 10:00 Standup', summary: 'Today', read: false });
+  });
+
+  it('fails the run when there is no report', async () => {
+    await expect(runRoutine(task(), new Set(), { getSettings: () => settings, makeId: (u) => u, runTask: async () => '  ' })).rejects.toThrow(/report/);
+    await expect(runRoutine(task(), new Set(), { getSettings: () => settings, makeId: (u) => u })).rejects.toThrow();
+  });
+});

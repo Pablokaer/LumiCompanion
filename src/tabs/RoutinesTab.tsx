@@ -1,26 +1,27 @@
 import { useEffect, useState } from 'react';
-import { FREQUENCY_LABEL, ROUTINE_PRESETS, type Routine, type RoutineFrequency, type RoutineInput, type RoutineKind } from '../../shared/routines';
+import { FREQUENCY_LABEL, MAX_INSTRUCTIONS, ROUTINE_PRESETS, type Routine, type RoutineFrequency, type RoutineInput, type RoutineKind } from '../../shared/routines';
 import { api } from '../api';
 import { EditIcon, PlayIcon, PlusIcon, TrashIcon } from '../components/Icons';
 import { timeAgo } from '../format';
 
 const cleanError = (e: unknown) => (e as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
 
-const KIND_LABEL: Record<RoutineKind, string> = { news: 'News search', articles: 'Articles (Hacker News)', site: 'Website to watch' };
+const KIND_LABEL: Record<RoutineKind, string> = { task: 'Instructions (she does what you write)', news: 'News search', articles: 'Articles (Hacker News)', site: 'Website to watch' };
 const TARGET_HINT: Record<RoutineKind, { label: string; placeholder: string; hint: string }> = {
+  task: { label: 'Instructions', placeholder: 'Every morning, list my meetings for the day and the most important unread emails, and tell me what to prepare.', hint: 'Write exactly what she should do each time. She can read your calendar and Gmail, search the news and Hacker News, and read websites. The report goes to News. She cannot change anything on her own.' },
   news: { label: 'Search for', placeholder: 'artificial intelligence OR LLM', hint: 'She searches the news for this every time the routine runs. OR and quotes work.' },
   articles: { label: 'Search for', placeholder: 'programming', hint: 'Developer articles and discussions from Hacker News.' },
   site: { label: 'Website address', placeholder: 'https://akitaonrails.com/', hint: 'Every new post becomes an item in News with a link straight to it. She uses the site’s feed when it has one.' },
 };
 
-const NEW_ROUTINE: RoutineInput = { name: '', kind: 'news', target: '', language: 'en', frequency: 'daily', time: '08:00', maxItems: 5, useAi: true, enabled: true };
+const NEW_ROUTINE: RoutineInput = { name: '', kind: 'task', target: '', language: 'en', frequency: 'daily', time: '08:00', maxItems: 5, useAi: true, enabled: true };
 
 const scheduleText = (r: Routine) => (r.frequency === 'daily' ? `Every day at ${r.time}` : FREQUENCY_LABEL[r.frequency]);
 
 function lastRunText(r: Routine, now: Date) {
   if (r.lastError) return { text: `Problem: ${r.lastError}`, bad: true };
   if (!r.lastRunAt) return { text: r.enabled ? 'Waiting for its first run…' : 'Paused', bad: false };
-  const added = r.lastAdded ? `${r.lastAdded} new` : 'nothing new';
+  const added = r.kind === 'task' ? 'report ready in News' : r.lastAdded ? `${r.lastAdded} new` : 'nothing new';
   return { text: `Last run ${timeAgo(new Date(r.lastRunAt).toISOString(), now)} ago · ${added}`, bad: false };
 }
 
@@ -93,7 +94,9 @@ export function RoutinesTab({ now }: { now: Date }) {
           </label>
           <label className="field">
             <span>{t.label}</span>
-            <input value={draft.target ?? ''} maxLength={300} placeholder={t.placeholder} spellCheck={false} onChange={(e) => edit({ target: e.target.value })} />
+            {kind === 'task'
+              ? <textarea className="instructions" rows={7} value={draft.target ?? ''} maxLength={MAX_INSTRUCTIONS} placeholder={t.placeholder} onChange={(e) => edit({ target: e.target.value })} />
+              : <input value={draft.target ?? ''} maxLength={300} placeholder={t.placeholder} spellCheck={false} onChange={(e) => edit({ target: e.target.value })} />}
             <span className="hint">{t.hint}</span>
           </label>
           {kind === 'news' && (
@@ -118,13 +121,15 @@ export function RoutinesTab({ now }: { now: Date }) {
               <span className="hint">If the computer is off then, she runs it when it is back on.</span>
             </label>
           )}
+          {kind !== 'task' && (
           <label className="field">
             <span>Most items per run</span>
             <select value={draft.maxItems ?? 5} onChange={(e) => edit({ maxItems: Number(e.target.value) })}>
               {[1, 3, 5, 10].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>
-          {kind !== 'site' && (
+          )}
+          {(kind === 'news' || kind === 'articles') && (
             <label className="toggle">
               <span>
                 <span className="toggle-label">Pick and summarise with AI</span>
@@ -160,6 +165,7 @@ export function RoutinesTab({ now }: { now: Date }) {
             {ROUTINE_PRESETS.map((p) => (
               <button key={p.name} className="chip small" onClick={() => open({ ...NEW_ROUTINE, name: p.name, kind: p.kind, target: p.target })}>{p.name}</button>
             ))}
+            <button className="chip small" onClick={() => open({ ...NEW_ROUTINE, name: 'Morning briefing', kind: 'task', target: TARGET_HINT.task.placeholder })}>Daily briefing</button>
             <button className="chip small" onClick={() => open({ ...NEW_ROUTINE, name: 'New posts', kind: 'site', target: '', frequency: 'hourly', useAi: false })}>Watch a website</button>
           </div>
         </div>
@@ -177,8 +183,8 @@ export function RoutinesTab({ now }: { now: Date }) {
                   <span className="switch" aria-hidden="true" />
                 </label>
               </div>
-              <div className="routine-what">{KIND_LABEL[r.kind]} · <span className="routine-target">{r.target}</span></div>
-              <div className="routine-when">{scheduleText(r)} · up to {r.maxItems}</div>
+              <div className="routine-what">{r.kind === 'task' ? 'Instructions' : KIND_LABEL[r.kind]} · <span className="routine-target">{r.target}</span></div>
+              <div className="routine-when">{scheduleText(r)}{r.kind === 'task' ? '' : ` · up to ${r.maxItems}`}</div>
               <div className={`routine-last${last.bad ? ' bad' : ''}`}>{last.text}</div>
               <div className="routine-actions">
                 {confirmId === r.id ? (

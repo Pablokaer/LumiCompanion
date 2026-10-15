@@ -249,9 +249,12 @@ export interface CaptureResult {
 
 export interface ConfirmRequest {
   id: string;
-  kind: 'create_event';
+  kind: 'create_event' | 'create_routine' | 'update_routine' | 'delete_routine';
   title: string;
-  details: NewEventInput;
+  /** What the confirmation card lists, label and value. */
+  rows: { label: string; value: string }[];
+  /** Text of the approve button. */
+  confirmLabel: string;
 }
 
 export type AgentStatus =
