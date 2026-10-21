@@ -34,6 +34,8 @@ function Rich({ text }: { text: string }) {
 export function ChatTab({ chat, setChat, name }: { chat: ChatState; setChat: Dispatch<SetStateAction<ChatState>>; name: string }) {
   const [input, setInput] = useState('');
   const [ollama, setOllama] = useState<OllamaStatus>();
+  const [switching, setSwitching] = useState<'starting' | 'stopping'>();
+  const [aiNote, setAiNote] = useState<string>();
   const endRef = useRef<HTMLDivElement>(null);
   const recording = useRef<Recording | undefined>(undefined);
   const autoStop = useRef<number | undefined>(undefined);
@@ -41,11 +43,31 @@ export function ChatTab({ chat, setChat, name }: { chat: ChatState; setChat: Dis
   const busy = chat.status.state !== 'idle' || (chat.messages.length > 0 && chat.messages[chat.messages.length - 1].role === 'user' && !chat.error);
 
   useEffect(() => { api.agent.ollamaStatus().then(setOllama); }, []);
+  const aiOn = !!ollama?.running;
+
+  // The local AI only runs while you want it: start it before chatting, stop it to free the memory.
+  const startAi = async () => {
+    setSwitching('starting');
+    setAiNote(undefined);
+    try {
+      const status = await api.agent.startAi();
+      setOllama(status);
+      if (!status.running) setAiNote(status.error ?? 'The local AI did not start. Check Settings → Local AI.');
+    } finally { setSwitching(undefined); }
+  };
+  const stopAi = async () => {
+    setSwitching('stopping');
+    try {
+      const { status, external } = await api.agent.stopAi();
+      setOllama(status);
+      setAiNote(external ? 'Ollama was started outside Lumi, so it keeps running. Its model was unloaded to free the memory.' : undefined);
+    } finally { setSwitching(undefined); }
+  };
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chat.messages.length, chat.confirm, chat.status]);
 
   const send = async (text: string) => {
     const content = text.trim();
-    if (!content || busy) return;
+    if (!content || busy || !aiOn) return;
     const history: ChatMessage[] = [...chat.messages, { role: 'user', content }];
     setChat((c) => ({ ...c, messages: history, error: undefined }));
     setInput('');
@@ -59,7 +81,7 @@ export function ChatTab({ chat, setChat, name }: { chat: ChatState; setChat: Dis
   };
 
   const attach = async () => {
-    if (busy) return;
+    if (busy || !aiOn) return;
     const file = await api.docs.pickFile();
     if (!file) return;
     setChat((c) => ({ ...c, messages: [...c.messages, { role: 'user', content: `📎 ${file.name}` }], error: undefined }));
@@ -123,18 +145,27 @@ ${notes}` }] }));
 
   return (
     <div className="chat">
-      <div className={`ollama-pill ${ollama?.running ? 'ok' : 'off'}`}>
-        <span className="dot" />
-        {!ollama ? 'Checking local AI…' : ollama.running ? `Local AI ready · ${ollama.models.length} model${ollama.models.length === 1 ? '' : 's'}` : 'Ollama not running'}
+      <div className="ai-switch">
+        <div className={`ollama-pill ${aiOn ? 'ok' : 'off'}`}>
+          <span className="dot" />
+          {!ollama ? 'Checking local AI…'
+            : switching === 'starting' ? 'Starting the local AI…'
+            : switching === 'stopping' ? 'Stopping the local AI…'
+            : aiOn ? `Local AI on · ${ollama.models.length} model${ollama.models.length === 1 ? '' : 's'}` : 'Local AI is off'}
+        </div>
+        {ollama && (aiOn
+          ? <button className="pill-btn ghost small" onClick={() => void stopAi()} disabled={!!switching || busy} title="Unload the model and stop Ollama to free memory">Stop AI</button>
+          : <button className="pill-btn small" onClick={() => void startAi()} disabled={!!switching}>Start AI</button>)}
       </div>
+      {aiNote && <p className="hint ai-note">{aiNote}</p>}
 
       <div className="messages">
         {chat.messages.length === 0 && (
           <div className="chat-empty">
             <Mascot mood="happy" size={88} />
-            <p>Ask me anything about your day. I run entirely on your computer ✦</p>
+            <p>{aiOn ? 'Ask me anything about your day. I run entirely on your computer ✦' : 'Click “Start AI” to chat. The local AI only runs while you need it ✦'}</p>
             <div className="suggestions">
-              {SUGGESTIONS.map((s) => <button key={s} onClick={() => send(s)}>{s}</button>)}
+              {SUGGESTIONS.map((s) => <button key={s} onClick={() => send(s)} disabled={!aiOn}>{s}</button>)}
             </div>
           </div>
         )}
@@ -173,16 +204,16 @@ ${notes}` }] }));
       </div>
 
       <form className="composer" onSubmit={submit}>
-        <button type="button" className="attach-btn" onClick={attach} disabled={busy || !!chat.confirm} aria-label="Answer questions from a file" title="Answer the questions in a file (.docx, .pdf, .txt)"><AttachIcon /></button>
+        <button type="button" className="attach-btn" onClick={attach} disabled={busy || !aiOn || !!chat.confirm} aria-label="Answer questions from a file" title="Answer the questions in a file (.docx, .pdf, .txt)"><AttachIcon /></button>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={voice === 'listening' ? 'Listening… click the mic when you are done' : voice === 'transcribing' ? 'Turning your voice into text…' : `Message ${name}…`}
+          placeholder={voice === 'listening' ? 'Listening… click the mic when you are done' : voice === 'transcribing' ? 'Turning your voice into text…' : aiOn ? `Message ${name}…` : 'Start the AI to chat'}
           aria-label={`Message ${name}`}
           disabled={!!chat.confirm || voice === 'transcribing'}
         />
         <button type="button" className={`mic-btn${voice === 'listening' ? ' on' : ''}`} onClick={toggleListening} disabled={busy || voice === 'transcribing' || !!chat.confirm} aria-label={voice === 'listening' ? 'Stop recording' : 'Speak your message'} aria-pressed={voice === 'listening'} title={voice === 'listening' ? 'Stop recording' : 'Speak your message'}><MicIcon /></button>
-        <button className="send-btn" disabled={!input.trim() || busy} aria-label="Send"><SendIcon /></button>
+        <button className="send-btn" disabled={!input.trim() || busy || !aiOn} aria-label="Send"><SendIcon /></button>
       </form>
     </div>
   );

@@ -11,7 +11,7 @@ import { weatherSummary } from '../shared/weather';
 import { runAgent, type AgentDeps } from './agent/agent';
 import { applyMemoryFlags } from './memoryFlags';
 import { draftReply, eventFromText, suggestEventFromEmail } from './agent/mailTools';
-import { ensureOllama, ollamaStatus } from './agent/ollama';
+import { ensureOllama, ollamaStatus, startedByLumi, stopOllama } from './agent/ollama';
 import { OllamaSetup } from './agent/ollamaSetup';
 import { answerAssignment } from './docs/assignment';
 import { SUPPORTED_EXTENSIONS } from './docs/extract';
@@ -68,7 +68,7 @@ const routines = new RoutineService({
     getSettings,
     // A "task" routine: the agent follows the user's instructions with nobody there, so it can only read.
     runTask: async (routine) => {
-      if (!(await ollamaStatus(getSettings().ollamaUrl)).running) await tryStartOllama();
+      if (!(await ollamaStatus(getSettings().ollamaUrl)).running) throw new Error('The local AI is off. Start it in the Chat tab.');
       return runAgent([{ role: 'user', content: routine.target }], {
         ...agentDeps(),
         unattended: true,
@@ -100,11 +100,20 @@ const peekUnlessQuiet = (ms?: number) => { if (!dnd.state.active) peek(ms); };
 /** Starts Ollama when it is installed but stopped. Attempts are rate-limited so a broken install is not retried constantly. */
 let ollamaAttempt: { at: number; promise: Promise<unknown> } | undefined;
 function tryStartOllama() {
-  const s = getSettings();
-  if (!s.autoStartOllama) return Promise.resolve();
   if (ollamaAttempt && Date.now() - ollamaAttempt.at < 60_000) return ollamaAttempt.promise;
-  ollamaAttempt = { at: Date.now(), promise: ensureOllama(s.ollamaUrl) };
+  ollamaAttempt = { at: Date.now(), promise: ensureOllama(getSettings().ollamaUrl) };
   return ollamaAttempt.promise;
+}
+
+/**
+ * Turns the local AI on ("Start AI", or "Start the AI when Lumi opens"): with automatic setup on, a
+ * missing Ollama or model is installed first (progress arrives as 'ollama:setup' events).
+ */
+async function startAi() {
+  const s = getSettings();
+  if (s.autoSetupOllama && !process.env.LUMI_NO_AUTOSETUP) await ollamaSetup.ensure(s.ollamaUrl, s.ollamaModel);
+  else await ensureOllama(s.ollamaUrl);
+  return ollamaStatus(s.ollamaUrl);
 }
 
 /** Shows a reminder: in the app, as a popup, and as a notification that joins the call when you click it. */
@@ -235,10 +244,9 @@ async function bootstrap() {
   }, 33);
   // Tell the star how long the computer has been idle so she can fall asleep (and wake up).
   setInterval(() => send('activity', { idleSeconds: powerMonitor.getSystemIdleTime() }), 5_000);
-  void tryStartOllama();
   ollamaSetup.on('state', (s) => send('ollama:setup', s));
-  // When Ollama or its model is missing, set it up by itself a few seconds after opening (Windows and macOS).
-  setTimeout(() => { if (getSettings().autoSetupOllama && !process.env.LUMI_NO_AUTOSETUP) void ollamaSetup.ensure(getSettings().ollamaUrl, getSettings().ollamaModel); }, 8_000);
+  // The local AI is off until you start it in Chat, unless you asked for it when Lumi opens.
+  if (getSettings().startAiOnLaunch) setTimeout(() => void startAi(), 8_000);
 
   // ---- do not disturb ----
   dnd.on('state', (state, was) => {
@@ -353,17 +361,18 @@ function registerIpc() {
   // --- Agent ---
   ipcMain.handle('agent:setupOllama', () => ollamaSetup.ensure(getSettings().ollamaUrl, getSettings().ollamaModel));
   ipcMain.handle('agent:setupState', () => ollamaSetup.current);
-  ipcMain.handle('agent:ollamaStatus', async () => {
-    const status = await ollamaStatus(getSettings().ollamaUrl);
-    if (!status.running && getSettings().autoStartOllama) await tryStartOllama();
-    return status.running ? status : ollamaStatus(getSettings().ollamaUrl);
+  ipcMain.handle('agent:ollamaStatus', () => ollamaStatus(getSettings().ollamaUrl));
+  ipcMain.handle('agent:startAi', () => startAi());
+  ipcMain.handle('agent:stopAi', async () => {
+    const { external } = await stopOllama(getSettings().ollamaUrl);
+    return { status: await ollamaStatus(getSettings().ollamaUrl), external };
   });
   ipcMain.handle('agent:respondConfirm', (_e, id: string, approved: boolean) => {
     pendingConfirms.get(id)?.(approved);
     pendingConfirms.delete(id);
   });
   ipcMain.handle('agent:send', async (_e, history: ChatMessage[]) => {
-    if (!(await ollamaStatus(getSettings().ollamaUrl)).running) await tryStartOllama();
+    if (!(await ollamaStatus(getSettings().ollamaUrl)).running) throw new Error('The local AI is off. Click “Start AI” first.');
     return runAgent(history, agentDeps());
   });
 
@@ -521,6 +530,14 @@ function registerIpc() {
   });
 }
 
+// Quitting also turns off the local AI Lumi started, so nothing keeps running in the background.
+let aiStopped = false;
+app.on('before-quit', (e) => {
+  if (aiStopped || !startedByLumi(getSettings().ollamaUrl)) return;
+  e.preventDefault();
+  aiStopped = true;
+  void Promise.race([stopOllama(getSettings().ollamaUrl), new Promise((r) => setTimeout(r, 4000))]).finally(() => app.quit());
+});
 app.on('will-quit', () => { updates.applyOnQuit(); if (!getSettings().keepSignedIn) clearTokens(); dnd.stop(); weather.stop(); routines.stop(); quick.dispose(); globalShortcut.unregisterAll(); });
 // Keep running in the tray when the window is closed.
 app.on('window-all-closed', () => { /* stay alive */ });

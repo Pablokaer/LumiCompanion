@@ -143,7 +143,7 @@ export interface Settings {
   /** Download a new version as soon as it is found, and restart into it once you have been away for a while. */
   autoInstallUpdates: boolean;
   /** Start `ollama serve` automatically when it is installed but not running. */
-  autoStartOllama: boolean;
+  startAiOnLaunch: boolean;
   /** Download and install Ollama and its model by itself when they are missing (Windows and macOS). */
   autoSetupOllama: boolean;
   morningBriefing: boolean;
@@ -307,6 +307,10 @@ export interface LumiApi {
     /** Installs Ollama (if missing), starts it and downloads the model. Progress arrives as 'ollama:setup' events. */
     setupOllama(): Promise<OllamaSetupState>;
     setupState(): Promise<OllamaSetupState>;
+    /** Turns the local AI on (installing it first when automatic setup is on). */
+    startAi(): Promise<OllamaStatus>;
+    /** Turns it off: unloads the model and ends the server Lumi started. `external`: a server started outside Lumi keeps running. */
+    stopAi(): Promise<{ status: OllamaStatus; external: boolean }>;
   };
   focus: {
     get(): Promise<FocusState | undefined>;

@@ -40,7 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reactToMusic: true,
   autoUpdate: true,
   autoInstallUpdates: true,
-  autoStartOllama: true,
+  startAiOnLaunch: false,
   autoSetupOllama: true,
   morningBriefing: true,
   briefingTime: '08:00',

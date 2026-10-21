@@ -301,10 +301,10 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
           <input value={ollamaUrl} onChange={(e) => setOllamaUrl(e.target.value)} onBlur={() => ollamaUrl !== settings.ollamaUrl && saveOllamaUrl()} />
           {!isLocalAddress(ollamaUrl) && <span className="hint warn">This server is not on your computer: the emails, calendar and documents Lumi asks the AI about will be sent to it.</span>}
         </label>
-        <Toggle label="Install the local AI automatically" hint="When Ollama or its model is missing, Lumi downloads and sets them up by itself shortly after opening (Windows and macOS; the model is a few GB, downloaded once). Nothing is downloaded when a local Ollama with a model is already there." checked={settings.autoSetupOllama} onChange={(v) => update({ autoSetupOllama: v })} />
+        <Toggle label="Install the local AI automatically" hint="When you start the AI and Ollama or its model is missing, Lumi downloads and sets them up first (Windows and macOS; the model is a few GB, downloaded once). Nothing is downloaded when a local Ollama with a model is already there." checked={settings.autoSetupOllama} onChange={(v) => update({ autoSetupOllama: v })} />
         {setup.status !== 'idle' && <p className={`hint${setup.status === 'error' || setup.status === 'unsupported' ? ' warn' : ''}`}>{setup.status === 'ready' ? 'Local AI is set up ✦' : describeSetup(setup) || setup.message}</p>}
         {(setup.status === 'idle' || setup.status === 'error') && <button className="pill-btn ghost small" onClick={() => void api.agent.setupOllama()}>Set up the local AI now</button>}
-        <Toggle label="Start Ollama automatically" hint="If it is installed but stopped, Lumi launches it for you." checked={settings.autoStartOllama} onChange={(v) => update({ autoStartOllama: v })} />
+        <Toggle label="Start the AI when Lumi opens" hint="Off: the local AI stays off until you click “Start AI” in Chat (or use an AI action in the Inbox), and it is stopped again when you click “Stop AI” or quit Lumi." checked={settings.startAiOnLaunch} onChange={(v) => update({ startAiOnLaunch: v })} />
         <label className="field">
           <span>Default model</span>
           <select value={settings.ollamaModel} onChange={(e) => update({ ollamaModel: e.target.value })}>
