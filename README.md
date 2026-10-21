@@ -213,7 +213,12 @@ With "Dress for the weather and season" on, she grabs an **umbrella** in the rai
 She notices low battery (20% and 10%), plugging in, going offline or back online, headphones or speakers being connected, and your screen locking (she dozes off and wakes happily when you return). Each reaction is a short line, a matching mood and sometimes a small action. Turn it off in Settings → Tips and system reactions.
 
 ### Gentle tips
-Occasional, kind nudges: drink water, stretch, rest your eyes, check your posture, go to bed when it is very late, and take an umbrella when rain is coming and an event is soon. They respect cooldowns and a minimum gap between tips, only show when you have been active, and never appear during quiet mode, focus sessions, sleep or reminders. Frequency (rarely / normal / often) is in Settings.
+Occasional, kind nudges: drink water, stretch, rest your eyes, check your posture, go to bed when it is very late, and take an umbrella when rain is coming and an event is soon. They respect cooldowns and a minimum gap of 40 minutes between tips (twice that on "rarely"), only show when you have been active, and never appear during quiet mode, focus sessions, sleep or reminders. Frequency (rarely / normal / often) is in Settings.
+
+Her speech bubble is calm too: when several lines are queued it switches every 15 seconds, and the spontaneous actions (waving, humming, cheering, stretching) come with a line at most once every 2 minutes.
+
+### Calendar pop-ups only
+Settings → Tips and system reactions → **"Calendar pop-ups only"** (off by default) silences everything that is not about your calendar. Her speech bubble stays hidden and only appears when an event is about to start (from the largest reminder lead time of up to 60 minutes, 15 by default, until it starts) and for reminders. Tips, system reactions, petting and action lines, the greeting and email lines, the automatic morning briefing and routine notifications are all turned off (new routine items still land in the News tab, and "Preview now" still shows the briefing). Reminders, the "While you were busy" summary, focus-session and update notifications are unchanged.
 
 ## Using Lumi
 
@@ -238,6 +243,7 @@ Occasional, kind nudges: drink water, stretch, rest your eyes, check your postur
 | Preview the morning briefing | Settings → Morning briefing → Preview now |
 | Add an event from anywhere | **Ctrl/Cmd + Shift + Space**, then type a sentence |
 | Pause everything for a while | Tray menu → Do not disturb, or Settings → Do not disturb |
+| Only see calendar pop-ups | Settings → Tips and system reactions → Calendar pop-ups only |
 | Join a video call | **Join** on the reminder, the widget chip, the Today tab or the day agenda |
 | Move it | Drag the widget. The position is remembered |
 

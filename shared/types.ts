@@ -128,6 +128,8 @@ export interface Settings {
   /** Occasional gentle tips: water, stretching, resting your eyes, bedtime. */
   proactiveTips: boolean;
   tipFrequency: 'rare' | 'normal' | 'often';
+  /** Only calendar pop-ups: her bubble speaks only about an event that is about to start (and reminders); no tips, system reactions, chatter, briefing or routine notifications. */
+  calendarPopupsOnly: boolean;
   /** Stay signed in to Google between runs. Off: you sign in again every time the app starts. */
   keepSignedIn: boolean;
   /** She reacts when the mouse passes over her: laughs, purrs, tries to bite. */

@@ -40,6 +40,9 @@ export const ACTION_LINES: Partial<Record<MascotAction, string>> = {
   wake: 'Welcome back! ✦',
 };
 
+/** Actions come every few seconds; at most one line per this many ms, so the bubble is not always changing. */
+export const ACTION_LINE_GAP_MS = 2 * 60_000;
+
 /** Weighted random choice that never repeats the previous action. */
 export function pickAction(rand: () => number, last?: MascotAction): { action: ActionDef['action']; durationMs: number } {
   const pool = IDLE_ACTIONS.filter((a) => a.action !== last);

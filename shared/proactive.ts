@@ -30,7 +30,7 @@ export const FREQUENCY_FACTOR: Record<TipFrequency, number> = { rare: 2, normal:
 
 const MIN = 60_000;
 /** Minimum time between any two tips, before the frequency factor. */
-export const MIN_GAP_MINUTES = 25;
+export const MIN_GAP_MINUTES = 40;
 
 const TEXTS: Record<TipId, { lines: string[]; action: TipAction }> = {
   water: { lines: ['Time for some water? 💧', 'Hydration check! 💧 A glass of water?', 'Your star says: drink some water 💧'], action: 'hop' },
@@ -82,6 +82,15 @@ export class TipEngine {
     const { lines, action } = TEXTS[id];
     return { id, text: lines[Math.min(lines.length - 1, Math.floor(this.rand() * lines.length))], action };
   }
+}
+
+/**
+ * "Calendar pop-ups only": how many minutes before an event she starts talking about it. The largest
+ * reminder lead time of up to an hour (so a day-before reminder does not make her chatty all day), 15 by default.
+ */
+export function calendarWindowMinutes(leads: number[]): number {
+  const near = leads.filter((n) => n > 0 && n <= 60);
+  return near.length ? Math.max(...near) : 15;
 }
 
 /**

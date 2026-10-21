@@ -246,6 +246,7 @@ export function SettingsTab({ settings, onSettings, onLiveColor, auth, onSignedO
 
       <section className="card">
         <h3>Tips and system reactions</h3>
+        <Toggle label="Calendar pop-ups only" hint="She only speaks up when an event is about to start (and for reminders). No tips, system reactions, chatter, morning briefing or routine notifications." checked={settings.calendarPopupsOnly} onChange={(v) => update({ calendarPopupsOnly: v })} />
         <Toggle label="Gentle tips" hint="Water, stretching, rest your eyes, posture, late-night and rain reminders. Never while you are busy." checked={settings.proactiveTips} onChange={(v) => update({ proactiveTips: v })} />
         {settings.proactiveTips && (
           <div className="field">
