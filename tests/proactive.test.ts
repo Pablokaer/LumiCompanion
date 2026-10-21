@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ActivityTracker, FREQUENCY_FACTOR, MIN_GAP_MINUTES, TipEngine, type TipContext } from '../shared/proactive';
+import { ActivityTracker, FREQUENCY_FACTOR, MIN_GAP_MINUTES, TipEngine, calendarWindowMinutes, type TipContext } from '../shared/proactive';
 
 const MIN = 60_000;
 const rng = (seed: number) => () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32);
@@ -104,5 +104,14 @@ describe('measuring continuous use', () => {
     expect(t.minutes).toBe(0);
     t.update(60_000 + 9 * 60 * 60_000, 1); // the laptop slept for 9 hours
     expect(t.minutes).toBeLessThanOrEqual(2);
+  });
+});
+
+describe('calendar pop-ups only', () => {
+  it('speaks up from the largest reminder lead time of up to an hour', () => {
+    expect(calendarWindowMinutes([15, 5])).toBe(15);
+    expect(calendarWindowMinutes([30, 1440])).toBe(30); // a day-before reminder does not count
+    expect(calendarWindowMinutes([])).toBe(15);
+    expect(calendarWindowMinutes([0, 1440])).toBe(15);
   });
 });

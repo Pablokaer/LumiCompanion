@@ -34,6 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reactToSystem: true,
   proactiveTips: true,
   tipFrequency: 'normal',
+  calendarPopupsOnly: false,
   keepSignedIn: true,
   sleepAfterMinutes: 3,
   reactToMusic: true,

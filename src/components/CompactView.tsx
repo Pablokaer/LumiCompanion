@@ -25,7 +25,7 @@ export function CompactView({ mood, name, lines, ambient = 'none', upcoming, now
   useEffect(() => { setI(0); }, [lines.join('|')]);
   useEffect(() => {
     if (lines.length < 2) return;
-    const t = window.setInterval(() => setI((n) => (n + 1) % lines.length), 9000);
+    const t = window.setInterval(() => setI((n) => (n + 1) % lines.length), 15_000);
     return () => window.clearInterval(t);
   }, [lines.length]);
 
@@ -33,7 +33,7 @@ export function CompactView({ mood, name, lines, ambient = 'none', upcoming, now
 
   return (
     <div className="compact drag">
-      <div className="bubble" key={line} role="status" aria-live="polite">{line}</div>
+      {line && <div className="bubble" key={line} role="status" aria-live="polite">{line}</div>}
       <div className="portal">
         <Starfield density={0.004} />
         <AmbientLayer kind={ambient} />

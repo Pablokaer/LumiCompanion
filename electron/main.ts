@@ -138,7 +138,7 @@ function showBriefing(markShown: boolean) {
 }
 
 function checkBriefing() {
-  if (!sync.data.lastSync || dnd.state.active || !shouldShowBriefing(getSettings())) return; // while quiet, it waits
+  if (!sync.data.lastSync || dnd.state.active || getSettings().calendarPopupsOnly || !shouldShowBriefing(getSettings())) return; // while quiet, it waits
   showBriefing(true);
 }
 
@@ -256,6 +256,7 @@ async function bootstrap() {
   // ---- routines: daily jobs that put new articles in the News tab ----
   routines.on('changed', () => { send('routines:updated', routines.list()); send('news:updated', routines.news()); });
   routines.on('news', (items: { title: string; summary?: string; body?: string }[], routine: { name: string }) => {
+    if (getSettings().calendarPopupsOnly) return; // still in the News tab, just no pop-up
     notify(items[0]?.body ? routine.name : `${items.length} new in “${routine.name}”`, items.slice(0, 3).map((i) => `• ${i.body ? i.summary ?? i.title : i.title}`).join('\n'), () => { const w = getWindow(); w?.show(); w?.focus(); });
   });
   routines.start();

@@ -8,7 +8,8 @@ import { ambientFor, autoAccessories, seasonFor } from '../shared/weather';
 import { api, isMock } from './api';
 import { AppearanceProvider, skinVars } from './appearance';
 import { useDnd, useNoticeState, useSystemNotices, useTips, useWeather } from './automation';
-import { ACTION_LINES } from './behavior';
+import { ACTION_LINE_GAP_MS, ACTION_LINES } from './behavior';
+import { calendarWindowMinutes } from '../shared/proactive';
 import { AmbientLayer } from './components/AmbientLayer';
 import { CalendarWidget } from './components/CalendarWidget';
 import { CompactView } from './components/CompactView';
@@ -109,7 +110,10 @@ export default function App() {
   // ---- do not disturb, weather, and what she says about the computer ----
   const dnd = useDnd();
   const weather = useWeather();
-  const { notice, push: pushNotice, clear: clearNotice } = useNoticeState();
+  const { notice, push, clear: clearNotice } = useNoticeState();
+  const calendarOnly = settings?.calendarPopupsOnly ?? false;
+  // "Calendar pop-ups only": system reactions and tips say nothing (she still dozes off when the screen locks)
+  const pushNotice = calendarOnly ? () => undefined : push;
   const lowPower = useSystemNotices(settings?.reactToSystem ?? false, pushNotice, {
     onAway: () => setIdleSeconds(3600), // the screen was locked or the computer went to sleep: she dozes off at once
     onBack: () => setIdleSeconds(0),
@@ -135,7 +139,7 @@ export default function App() {
 
   // gentle tips: only when nothing else is going on
   useTips({
-    enabled: settings?.proactiveTips ?? false,
+    enabled: (settings?.proactiveTips ?? false) && !calendarOnly,
     frequency: settings?.tipFrequency ?? 'normal',
     idleSeconds,
     quiet: quiet || !!focus || !!reminder || life.sleeping || !!meetingNow(data.events, Date.now()),
@@ -143,10 +147,26 @@ export default function App() {
     eventSoon: !!upcoming && minutesToNext <= 180 && !!upcoming.location && !/^https?:/i.test(upcoming.location),
   }, pushNotice);
 
+  // spontaneous actions come every few seconds: only some of them get a line
+  const [actionLine, setActionLine] = useState<string>();
+  const lastActionLine = useRef(0);
+  useEffect(() => {
+    const line = ACTION_LINES[life.action];
+    if (!line) { setActionLine(undefined); return; }
+    if (Date.now() - lastActionLine.current < ACTION_LINE_GAP_MS) return;
+    lastActionLine.current = Date.now();
+    setActionLine(line);
+  }, [life.action, life.actionKey]);
+
   const name = settings?.mascotName ?? 'Lumi';
+  const nearWindow = calendarWindowMinutes(settings?.reminderLeadMinutes ?? []);
   const speech = useMemo(() => {
     const lines: string[] = [];
     if (reminder) return [reminder.message];
+    if (calendarOnly) {
+      // nothing to say (no bubble) unless an event is about to start
+      return upcoming && minutesToNext >= 0 && minutesToNext <= nearWindow ? [`“${upcoming.title}” in ${minutesToNext} min ✦`] : [];
+    }
     if (chat.status.state !== 'idle') return ['Thinking among the stars…'];
     if (briefing) return [briefing.title, ...briefing.lines.slice(0, 5).map((l) => l.replace(/^•\s*/, ''))];
     if (focus) return [`Focus time — ${Math.max(1, Math.ceil((focus.endsAt - Date.now()) / 60_000))} min left ✦`];
@@ -155,7 +175,6 @@ export default function App() {
     if (life.reactionLine) return [life.reactionLine];
     if (life.sleeping) return ['Zzz… 💤'];
     if (life.dancing) return [`♪ ${life.bpm} BPM — I love this one!`, 'Dance with me! ✦'];
-    const actionLine = ACTION_LINES[life.action];
     if (actionLine) return [actionLine];
     if (upcoming && minutesToNext <= 60) lines.push(`“${upcoming.title}” ${minutesToNext <= 0 ? 'is happening now' : `in ${minutesToNext} min`} ✦`);
     else if (upcoming) lines.push(`Next up: ${upcoming.title} at ${fmtTime(upcoming.start)}`);
@@ -164,7 +183,7 @@ export default function App() {
     lines.push(`${greeting(now)}${first ? `, ${first}` : ''}!`);
     if (!upcoming) lines.push('Your sky is clear — no more events today 🌌');
     return lines;
-  }, [reminder, briefing, focus, dnd.active, notice, life.reactionLine, life.sleeping, life.dancing, life.bpm, life.action, chat.status.state, upcoming, minutesToNext, highEmails.length, auth?.profile?.name, now]);
+  }, [reminder, calendarOnly, nearWindow, briefing, focus, dnd.active, notice, life.reactionLine, life.sleeping, life.dancing, life.bpm, actionLine, chat.status.state, upcoming, minutesToNext, highEmails.length, auth?.profile?.name, now]);
 
   const poke = () => setHappyUntil(Date.now() + 2500);
 
