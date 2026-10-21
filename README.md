@@ -26,7 +26,7 @@ Lumi is a little blue star that lives on your Windows or Mac desktop. It watches
 - **Voice input:** click the microphone in Chat and speak. Transcription runs locally with Whisper (see below).
 - **Shapes, skins and accessories:** pick her body from four star shapes (star, chubby, sparkle, six-point) or space objects (ringed planet, Earth, Moon, Sun, comet), five colour presets or **any colour you like** with a Photoshop-style picker (they re-theme the whole app), and mix and match 22 accessories by spot: **head** (party hat, crown, wizard hat, top hat, halo, flower, cat ears, antenna, bow, space helmet, Santa hat, witch hat, beanie), **ears** (headphones), **eyes** (glasses, sunglasses, monocle), **neck** (scarf, bow tie) **face** (mustache) and **prop** (umbrella). One accessory per spot, different spots combine. Settings → Appearance has a live preview.
 - **Models per task:** use a small model for email triage and a larger one for writing. Settings → Local AI.
-- **Ollama starts itself:** if it is installed but stopped, Lumi launches it (can be turned off).
+- **The AI only runs when you want it:** the local AI is off when Lumi opens. Click **Start AI** in the Chat tab before chatting, and **Stop AI** to unload the model and stop Ollama so nothing keeps running in the background. See [Turning the local AI on and off](#turning-the-local-ai-on-and-off).
 - **Answer assignments into a Google Doc:** attach a `.docx`, `.pdf`, `.txt` or `.md` file of questions in Chat. Lumi finds the questions, researches real sources, writes academic answers and saves them as a Google Doc with in-text citations and a reference list in ABNT or APA (see below).
 
 ## Quick start
@@ -37,7 +37,7 @@ cp .env.example .env        # then fill in your Google OAuth client (see below)
 npm run dev                 # Vite + Electron with hot reload for the UI
 ```
 
-To work on the UI only, with sample data and no Google or Ollama needed, run `npm run preview:ui` and open http://localhost:5173. Add `?signedIn=0` to see the login screen, `?reminder=1` to see a reminder, or `?view=month` / `?view=day` to preview the calendar widget views.
+To work on the UI only, with sample data and no Google or Ollama needed, run `npm run preview:ui` and open http://localhost:5173. Add `?signedIn=0` to see the login screen, `?ai=off` to see Chat with the local AI off, `?reminder=1` to see a reminder, or `?view=month` / `?view=day` to preview the calendar widget views.
 
 ## 1. Google Cloud setup (about 5 minutes)
 
@@ -65,9 +65,18 @@ To work on the UI only, with sample data and no Google or Ollama needed, run `np
    ```
 3. In Lumi → Settings you can pick any installed model or change the server URL.
 
-By default Lumi starts `ollama serve` for you when Ollama is installed but not running (Settings → Local AI → "Start Ollama automatically"). It only does this for a local server URL and leaves Ollama running when you quit Lumi.
+### Turning the local AI on and off
 
-If Ollama is off, Calendar, Gmail, reminders and the heuristic email ranking still work. Only the chat and the AI triage need the model.
+The local AI is **off** when Lumi opens, so Ollama does not run in the background while you are not using it.
+
+- **Start AI** (Chat tab, next to the status pill) starts `ollama serve` when it is installed but stopped. With "Install the local AI automatically" on, a missing Ollama or model is set up first (see [The local AI sets itself up](#the-local-ai-sets-itself-up)). Until the AI is on, the message box, suggestions and file button in Chat are disabled.
+- **Stop AI** unloads every loaded model (this ends Ollama's runner processes and frees their memory) and stops the server Lumi started. A server you started yourself (or that an older Lumi left running) keeps running, with its model unloaded, and Chat tells you so.
+- **Quitting Lumi** stops the server Lumi started in the same way.
+- Settings → Local AI (Ollama) → **"Start the AI when Lumi opens"** (off by default) brings back the old behaviour of starting it a few seconds after Lumi opens.
+- "Draft reply" and "Make event" in the Inbox are explicit AI actions, so they still start the AI by themselves when you click them.
+- While the AI is off, the background AI features quietly fall back: email triage uses only the heuristic score, news routines use the newest items without a summary, and an instructions routine is shown as a problem ("The local AI is off") until the AI is on at its next run. Quick capture only uses the AI if it is already on.
+
+Only a local server URL is ever started or stopped. If Ollama is off, Calendar, Gmail, reminders and the heuristic email ranking still work. Only the chat and the AI features need the model.
 
 ## A star that feels alive
 
@@ -147,7 +156,7 @@ Click the microphone button in Chat, speak, and click it again. Your speech is t
 
 ## The local AI sets itself up
 
-On **Windows and macOS**, when Lumi opens and finds no Ollama (or Ollama without any model), it sets the local AI up by itself a few seconds later, with a progress bar at the top of the panel: it downloads Ollama from its official sources (Windows: the standalone build from Ollama's GitHub releases, unpacked into `%LOCALAPPDATA%\Lumi\ollama` with the built-in `tar.exe`, so there is no installer, no administrator rights and no Ollama tray app that starts with Windows or shows its own windows; macOS: the app from the same release page, unpacked into `/Applications`, or `~/Applications` if that is not writable), starts it, and downloads the default model (a few GB, once, through Ollama itself). Lumi finds the newest Ollama release once, downloads the file and that release's `sha256sum.txt`, and checks the file's SHA-256 against it; nothing is unpacked or started if it does not match. Nothing is downloaded when a local Ollama with a model is already there, and only a local server (`localhost`) is ever managed. Turn it off in Settings → Local AI (Ollama) ("Install the local AI automatically"), or run it by hand with "Set up the local AI now". On **Linux** the official installer needs administrator rights, so Lumi shows the one command to run instead.
+On **Windows and macOS**, when you start the AI (or Lumi opens with "Start the AI when Lumi opens" on) and there is no Ollama (or Ollama without any model), it sets the local AI up by itself, with a progress bar at the top of the panel: it downloads Ollama from its official sources (Windows: the standalone build from Ollama's GitHub releases, unpacked into `%LOCALAPPDATA%\Lumi\ollama` with the built-in `tar.exe`, so there is no installer, no administrator rights and no Ollama tray app that starts with Windows or shows its own windows; macOS: the app from the same release page, unpacked into `/Applications`, or `~/Applications` if that is not writable), starts it, and downloads the default model (a few GB, once, through Ollama itself). Lumi finds the newest Ollama release once, downloads the file and that release's `sha256sum.txt`, and checks the file's SHA-256 against it; nothing is unpacked or started if it does not match. Nothing is downloaded when a local Ollama with a model is already there, and only a local server (`localhost`) is ever managed. Turn it off in Settings → Local AI (Ollama) ("Install the local AI automatically"), or run it by hand with "Set up the local AI now". On **Linux** the official installer needs administrator rights, so Lumi shows the one command to run instead.
 
 ## Answering assignments into a Google Doc
 
@@ -317,7 +326,7 @@ electron/              Main process (Node)
   store.ts             Settings, encrypted tokens, OAuth client config
   google/              auth.ts (OAuth PKCE), calendar.ts (incl. month ranges), gmail.ts (incl. full messages and drafts)
   docs/                assignment.ts (answer pipeline), extract.ts (docx/pdf/txt), sources.ts (OpenAlex + citations), googleDocs.ts
-  agent/               ollama.ts (HTTP client, auto-start, per-task models), agent.ts (tool-calling loop + email triage), mailTools.ts (draft replies, email → event)
+  agent/               ollama.ts (HTTP client, start/stop, per-task models), agent.ts (tool-calling loop + email triage), mailTools.ts (draft replies, email → event)
   voice/               transcribe.ts (local Whisper speech-to-text)
   updater.ts           Update service: electron-updater for Windows/AppImage, macUpdate.ts for macOS, release-page check elsewhere
   macUpdate.ts         macOS self-update: feed parsing, verified download, in-place swap script

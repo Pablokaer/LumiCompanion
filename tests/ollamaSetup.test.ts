@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ollamaCandidates } from '../electron/agent/ollama';
+import { ollamaCandidates, startedByLumi, stopOllama } from '../electron/agent/ollama';
 import { friendlySetupError, INSTALLERS, isOllamaInstalled, LINUX_HINT, OllamaSetup, parsePullLine } from '../electron/agent/ollamaSetup';
 
 afterEach(() => vi.restoreAllMocks());
@@ -86,5 +86,28 @@ describe('setup against a running Ollama', () => {
   it('leaves a remote server alone', async () => {
     const state = await new OllamaSetup().ensure('http://example.com:11434', 'x');
     expect(state.status).toBe('idle');
+  });
+});
+
+describe('stopping the local AI', () => {
+  it('unloads every loaded model and leaves a server Lumi did not start running', async () => {
+    const calls: { url: string; body?: string }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: { body?: string }) => {
+      calls.push({ url, body: init?.body });
+      if (url.endsWith('/api/ps')) return new Response(JSON.stringify({ models: [{ name: 'qwen2.5:7b' }, { name: 'llama3.1:8b' }] }));
+      if (url.endsWith('/api/tags')) return new Response(JSON.stringify({ models: [] }));
+      return new Response('{}');
+    }));
+    try {
+      expect(startedByLumi('http://localhost:11434/')).toBe(false);
+      expect(await stopOllama('http://localhost:11434/')).toEqual({ stopped: false, external: true });
+      const unloads = calls.filter((c) => c.url === 'http://localhost:11434/api/generate').map((c) => JSON.parse(c.body!));
+      expect(unloads).toEqual([{ model: 'qwen2.5:7b', keep_alive: 0 }, { model: 'llama3.1:8b', keep_alive: 0 }]);
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  it('never throws when nothing is running', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('connect ECONNREFUSED'); }));
+    try { expect(await stopOllama('http://localhost:11434')).toEqual({ stopped: false, external: false }); } finally { vi.unstubAllGlobals(); }
   });
 });

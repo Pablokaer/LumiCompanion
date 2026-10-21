@@ -102,8 +102,8 @@ export function ollamaCandidates(platform = process.platform, env: NodeJS.Proces
 
 /**
  * Starts `ollama serve` when it is installed but not running, and waits until it
- * answers. Resolves with the final status; never throws. The server is left
- * running when Lumi quits, like it would be if the user had started it.
+ * answers. Resolves with the final status; never throws. A server Lumi started is
+ * remembered so `stopOllama` (the "Stop AI" button, and quitting Lumi) can end it.
  */
 export function ensureOllama(baseUrl: string, waitMs = 20_000): Promise<OllamaStatus> {
   // One start at a time: startup and the automatic setup both ask, and a second `ollama serve` would be a second process.
@@ -115,6 +115,36 @@ export function ensureOllama(baseUrl: string, waitMs = 20_000): Promise<OllamaSt
 }
 
 const starting = new Map<string, Promise<OllamaStatus>>();
+/** The `ollama serve` processes Lumi started, by server URL. */
+const startedPids = new Map<string, number>();
+
+/** Whether the server at this URL is one Lumi started (and so may stop). */
+export const startedByLumi = (baseUrl: string) => startedPids.has(trimUrl(baseUrl));
+
+/**
+ * Turns the local AI off: unloads every loaded model (which ends Ollama's runner processes and frees
+ * their memory), then ends the server if Lumi started it. A server started outside Lumi keeps running.
+ * Never throws.
+ */
+export async function stopOllama(baseUrl: string): Promise<{ stopped: boolean; external: boolean }> {
+  const base = trimUrl(baseUrl);
+  try {
+    const res = await fetch(`${base}/api/ps`, { signal: AbortSignal.timeout(3000) });
+    const json = (res.ok ? await res.json() : {}) as { models?: { name: string }[] };
+    await Promise.all((json.models ?? []).map((m) => fetch(`${base}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(5000),
+      body: JSON.stringify({ model: m.name, keep_alive: 0 }),
+    }).catch(() => undefined)));
+  } catch { /* not running */ }
+  const pid = startedPids.get(base);
+  if (pid === undefined) return { stopped: false, external: (await ollamaStatus(base)).running };
+  startedPids.delete(base);
+  // Outside Windows it was started in its own process group: end the whole group.
+  try { process.kill(process.platform === 'win32' ? pid : -pid); } catch { /* already gone */ }
+  return { stopped: true, external: false };
+}
 
 async function startOllama(baseUrl: string, waitMs: number): Promise<OllamaStatus> {
   const current = await ollamaStatus(baseUrl);
@@ -127,7 +157,7 @@ async function startOllama(baseUrl: string, waitMs: number): Promise<OllamaStatu
       // Hidden-but-attached (CREATE_NO_WINDOW) gives them a hidden console to inherit; the server still outlives Lumi.
       const child = spawn(exe, ['serve'], { detached: process.platform !== 'win32', stdio: 'ignore', windowsHide: true });
       child.once('error', () => resolve(false));
-      child.once('spawn', () => { child.unref(); resolve(true); });
+      child.once('spawn', () => { child.unref(); if (child.pid) startedPids.set(trimUrl(baseUrl), child.pid); resolve(true); });
     });
     if (!started) continue;
     const deadline = Date.now() + waitMs;

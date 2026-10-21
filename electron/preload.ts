@@ -23,6 +23,8 @@ const api: LumiApi = {
     ollamaStatus: () => ipcRenderer.invoke('agent:ollamaStatus'),
     setupOllama: () => ipcRenderer.invoke('agent:setupOllama'),
     setupState: () => ipcRenderer.invoke('agent:setupState'),
+    startAi: () => ipcRenderer.invoke('agent:startAi'),
+    stopAi: () => ipcRenderer.invoke('agent:stopAi'),
   },
   focus: {
     get: () => ipcRenderer.invoke('focus:get'),

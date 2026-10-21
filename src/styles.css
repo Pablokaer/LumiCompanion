@@ -720,3 +720,7 @@ textarea:focus { border-color: var(--star); box-shadow: 0 0 0 3px rgba(92, 184, 
 .field textarea.instructions { min-height: 120px; resize: vertical; font: inherit; font-size: 13px; line-height: 1.45; }
 .routine-target { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .news-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; margin-top: 4px; }
+.ai-switch { align-self: center; display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; }
+.ai-switch .ollama-pill { margin: 0; }
+.ai-note { text-align: center; margin: 0 0 8px; }
+.suggestions button:disabled { opacity: 0.5; cursor: default; }
