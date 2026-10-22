@@ -5,6 +5,7 @@ import type {
   AuthState, CalendarEvent, CaptureResult, ChatMessage, DataSnapshot, FocusState, LumiApi, NewEventInput, ScoredEmail, Settings, UpdateState,
 } from '../shared/types';
 import type { WeatherCondition, WeatherState } from '../shared/weather';
+import { DEFAULT_SETTINGS } from '../shared/settings';
 
 declare global {
   interface Window { lumi?: LumiApi }
@@ -30,10 +31,14 @@ function createMockApi(): LumiApi {
   let aiRunning = params.get('ai') !== 'off';
   let auth: AuthState = { configured: true, signedIn: params.get('signedIn') !== '0', profile: { name: 'Pablo', email: 'pablo@example.com' } };
   let settings: Settings = {
-    mascotName: 'Lumi', widgetMode: 'desktop', widgetView: (params.get('view') as Settings['widgetView']) ?? 'mascot', widgetScale: Number(params.get('scale')) || 1,
-    panelScale: 1,
-    startInTray: false, skin: ((params.get('skin') as Settings['skin']) ?? 'classic'), customColor: '#' + (params.get('color') ?? 'ff6fae'), colorSwatches: ['#ff6fae', '#34d399', '#f59e0b'], shape: (params.get('shape') as Settings['shape']) ?? 'star', accessories: (params.get('acc')?.split(',').filter(Boolean) ?? []) as Settings['accessories'], mascotLife: true, followMouse: true, petReactions: true, dndFullscreen: true, dndMeetings: false, dndHideWidget: true, quickCapture: true, quickCaptureShortcut: 'CommandOrControl+Shift+Space', weather: true, weatherPlace: '', temperatureUnit: 'c', seasonalLook: true, reactToSystem: true, proactiveTips: true, tipFrequency: 'normal', calendarPopupsOnly: false, keepSignedIn: true, autoSetupOllama: true, sleepAfterMinutes: 3, reactToMusic: true, autoUpdate: true, autoInstallUpdates: true, startAiOnLaunch: false, morningBriefing: true, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', modelChat: '', modelTriage: '', modelWriting: '', launchAtLogin: true, reminderLeadMinutes: [15, 5], systemNotifications: true,
-    ollamaUrl: 'http://127.0.0.1:11434', ollamaModel: 'llama3.1:8b', aiEmailTriage: true, emailLookbackDays: 2,
+    ...DEFAULT_SETTINGS,
+    widgetView: (params.get('view') as Settings['widgetView']) ?? 'mascot',
+    widgetScale: Number(params.get('scale')) || 1,
+    skin: (params.get('skin') as Settings['skin']) ?? 'classic',
+    customColor: '#' + (params.get('color') ?? 'ff6fae'),
+    colorSwatches: ['#ff6fae', '#34d399', '#f59e0b'],
+    shape: (params.get('shape') as Settings['shape']) ?? 'star',
+    accessories: (params.get('acc')?.split(',').filter(Boolean) ?? []) as Settings['accessories'],
   };
   const events: CalendarEvent[] = [
     { id: '1', title: 'Team stand-up', start: soon, end: soonEnd, allDay: false, meetLink: 'https://meet.google.com/abc', joinUrl: 'https://meet.google.com/abc' },

@@ -3,13 +3,11 @@ import type { Settings } from '../shared/types';
 import { answerAssignment, applyCitations, pickStyle } from '../electron/docs/assignment';
 import { buildRequests, para } from '../electron/docs/googleDocs';
 import { abstractFromIndex, formatReference, inTextCitation, toSource, type Source } from '../electron/docs/sources';
+import { DEFAULT_SETTINGS } from '../shared/settings';
 
 vi.mock('electron', () => ({ app: {}, safeStorage: {}, shell: {} }));
 
-const settings: Settings = {
-  mascotName: 'Lumi', widgetMode: 'desktop', widgetView: 'mascot', widgetScale: 1, panelScale: 1, startInTray: false, skin: 'classic', customColor: '#ff6fae', colorSwatches: [], shape: 'star', accessories: [], mascotLife: true, followMouse: true, petReactions: true, dndFullscreen: true, dndMeetings: false, dndHideWidget: true, quickCapture: true, quickCaptureShortcut: 'CommandOrControl+Shift+Space', weather: true, weatherPlace: '', temperatureUnit: 'c', seasonalLook: true, reactToSystem: true, proactiveTips: true, tipFrequency: 'normal', calendarPopupsOnly: false, keepSignedIn: true, autoSetupOllama: true, sleepAfterMinutes: 3, reactToMusic: true, autoUpdate: true, autoInstallUpdates: true, startAiOnLaunch: false, morningBriefing: false, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', modelChat: '', modelTriage: '', modelWriting: '', launchAtLogin: false, reminderLeadMinutes: [15, 5], systemNotifications: true,
-  ollamaUrl: 'http://x', ollamaModel: 'm', aiEmailTriage: true, emailLookbackDays: 2,
-};
+const settings: Settings = { ...DEFAULT_SETTINGS, morningBriefing: false, launchAtLogin: false, ollamaUrl: 'http://x', ollamaModel: 'm' };
 
 const silva: Source = {
   id: 'W1', title: 'Learning in organisations', year: 2020, venue: 'Journal of Testing', volume: '12', issue: '3', pages: '45-67',

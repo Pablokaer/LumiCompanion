@@ -30,7 +30,7 @@ import { startPerfLog } from './perf';
 import { QuickCapture } from './quickCapture';
 import { RELEASES_PAGE, UpdateService } from './updater';
 import { LANGUAGE_NAMES, transcribe } from './voice/transcribe';
-import { clearTokens, getSettings, loadDotEnv, routineStorage, updateSettings } from './store';
+import { clearTokens, getSettings, loadDotEnv, onSettingsChanged, routineStorage, updateSettings } from './store';
 import { createTray, rebuildTrayMenu, setPendingUpdate } from './tray';
 import { applyWidgetMode, createWidgetWindow, currentScale, getWindow, peek, refreshWindowSize, setWindowMode, toggleWindow } from './window';
 
@@ -179,8 +179,20 @@ async function bootstrap() {
   startPerfLog(); // LUMI_PERF=1: CPU use per process every 5 s
   registerIpc();
   const widget = createWidgetWindow();
-  createTray(() => { applySystemSettings(); send('settings:changed'); }, { state: () => dnd.state, set: (ms) => dnd.setManual(ms) });
+  createTray({ state: () => dnd.state, set: (ms) => dnd.setManual(ms) });
   applySystemSettings();
+  // Every saved change, from the panel, the tray or the app itself, ends up here.
+  onSettingsChanged((next, changed) => {
+    const has = (...keys: (keyof Settings)[]) => keys.some((k) => changed.includes(k));
+    applySystemSettings(next);
+    if (has('widgetView', 'widgetScale', 'panelScale')) refreshWindowSize();
+    if (has('emailLookbackDays', 'aiEmailTriage')) void sync.refreshEmails();
+    if (has('dndFullscreen', 'dndMeetings', 'dndUntil')) dnd.applySettings();
+    if (has('weather', 'weatherPlace')) { if (next.weather) weather.start(); else { weather.stop(); void weather.refresh(); } }
+    if (has('quickCapture', 'quickCaptureShortcut')) quick.apply(next.quickCapture, next.quickCaptureShortcut);
+    rebuildTrayMenu();
+    send('settings:changed');
+  });
 
   globalShortcut.register('CommandOrControl+Shift+L', () => toggleWindow());
 
@@ -205,7 +217,7 @@ async function bootstrap() {
     send('update:state', s);
     // The tray offers a restart as soon as a downloaded update is waiting, for people who never open the panel.
     setPendingUpdate(s.status === 'ready' && s.version ? { version: s.version, install: () => updates.install() } : undefined);
-    rebuildTrayMenu(() => applySystemSettings());
+    rebuildTrayMenu();
     // With automatic installs a new version downloads by itself, so there is nothing to click until it is ready.
     const automatic = getSettings().autoInstallUpdates && !s.notifyOnly;
     const worthTellingAbout = s.status === 'ready' || (s.status === 'available' && !automatic);
@@ -251,7 +263,7 @@ async function bootstrap() {
   // ---- do not disturb ----
   dnd.on('state', (state, was) => {
     send('dnd:state', state);
-    rebuildTrayMenu(() => applySystemSettings());
+    rebuildTrayMenu();
     // A full-screen app in front: get out of the way entirely, and come back afterwards.
     const win = getWindow();
     if (state.active && state.reason === 'fullscreen' && getSettings().dndHideWidget && win?.isVisible()) { win.hide(); hiddenByDnd = true; }
@@ -509,17 +521,7 @@ function registerIpc() {
 
   // --- Settings ---
   ipcMain.handle('settings:get', () => getSettings());
-  ipcMain.handle('settings:update', (_e, patch: Partial<Settings>) => {
-    const next = updateSettings(patch);
-    applySystemSettings(next);
-    if ('widgetView' in patch || 'widgetScale' in patch || 'panelScale' in patch) refreshWindowSize();
-    rebuildTrayMenu(() => applySystemSettings());
-    if ('emailLookbackDays' in patch || 'aiEmailTriage' in patch) void sync.refreshEmails();
-    if ('dndFullscreen' in patch || 'dndMeetings' in patch || 'dndUntil' in patch) dnd.applySettings();
-    if ('weather' in patch || 'weatherPlace' in patch) { if (next.weather) weather.start(); else { weather.stop(); void weather.refresh(); } }
-    if ('quickCapture' in patch || 'quickCaptureShortcut' in patch) quick.apply(next.quickCapture, next.quickCaptureShortcut);
-    return next;
-  });
+  ipcMain.handle('settings:update', (_e, patch: Partial<Settings>) => updateSettings(patch)); // side effects: onSettingsChanged in bootstrap
 
   // --- Window ---
   ipcMain.handle('window:setMode', (_e, mode: WindowMode) => setWindowMode(mode));

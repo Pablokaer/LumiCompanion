@@ -317,13 +317,15 @@ For development, the feed can be pointed at a local server with the `LUMI_UPDATE
 
 ## Project structure
 
+**Adding a setting:** add it to `Settings` in `shared/types.ts` and its default to `DEFAULT_SETTINGS` in `shared/settings.ts` (plus a check there unless it is a boolean; a test fails if a default does not pass its own check). If changing it must do something right away, add a line to the `onSettingsChanged` listener in `electron/main.ts`; that listener runs for every saved change, whether it came from the panel, the tray or the app itself. The browser mock and the test fixtures start from `DEFAULT_SETTINGS`, so they need no edit.
+
 ```
 electron/              Main process (Node)
   main.ts              App bootstrap, IPC handlers, notifications, global shortcut
   window.ts            Widget window: compact/expanded, size per widget view, desktop vs on-top, peek
   tray.ts              Tray / menu-bar icon and menu
   preload.ts           Secure bridge → window.lumi (contextIsolation + sandbox)
-  store.ts             Settings, encrypted tokens, OAuth client config
+  store.ts             Saves settings (and tells onSettingsChanged listeners), encrypted tokens, OAuth client config
   google/              auth.ts (OAuth PKCE), calendar.ts (incl. month ranges), gmail.ts (incl. full messages and drafts)
   docs/                assignment.ts (answer pipeline), extract.ts (docx/pdf/txt), sources.ts (OpenAlex + citations), googleDocs.ts
   agent/               ollama.ts (HTTP client, start/stop, per-task models), agent.ts (tool-calling loop + email triage), mailTools.ts (draft replies, email → event)
@@ -339,7 +341,7 @@ shared/dnd.ts          Do-not-disturb rules (manual, full-screen, meeting)
 shared/meeting.ts      Meeting-link detection, safe-link allow-list, join window
 shared/quickParse.ts   English/Portuguese sentence → event parser
 shared/routines.ts     Routine and news types, presets, validation and the "is it due" rule
-shared/settingsGuard.ts  Checks a settings patch from the renderer (known keys, types, ranges, AI server address)
+shared/settings.ts     The settings module: defaults, the check for every key, and applyPatch (tidies a change and lists what changed)
 shared/weather.ts      Weather codes, seasons, automatic look and falling particles
 shared/proactive.ts    Tip engine (cooldowns, activity tracking)
 shared/notices.ts      System reactions (battery, network, audio devices, lock)

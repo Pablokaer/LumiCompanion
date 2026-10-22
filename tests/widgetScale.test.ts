@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { clampScale } from '../electron/store';
+import { clampScale } from '../shared/settings';
 import { scaleFor, sizeFor } from '../electron/window';
 
 vi.mock('electron', () => ({ app: {}, safeStorage: {}, shell: {}, BrowserWindow: class {}, screen: {} }));

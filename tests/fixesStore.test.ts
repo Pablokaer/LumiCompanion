@@ -15,7 +15,8 @@ vi.mock('electron', () => ({
   },
 }));
 
-import { clearTokens, DEFAULT_SETTINGS, getSettings, loadTokens, saveTokens, updateSettings } from '../electron/store';
+import { DEFAULT_SETTINGS } from '../shared/settings';
+import { clearTokens, getSettings, loadTokens, onSettingsChanged, saveTokens, updateSettings } from '../electron/store';
 
 beforeAll(() => { h.dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lumi-store-')); });
 afterAll(() => { fs.rmSync(h.dir, { recursive: true, force: true }); });
@@ -97,5 +98,19 @@ describe('saving settings', () => {
     expect(updateSettings(null as never)).toMatchObject({ mascotName: before.mascotName });
     expect(updateSettings('x' as never)).toMatchObject({ mascotName: before.mascotName });
     expect(updateSettings([1] as never)).toMatchObject({ mascotName: before.mascotName });
+  });
+});
+
+describe('settings listeners', () => {
+  it('hear every real change with the keys that changed, wherever it came from, and nothing for a no-op', () => {
+    const heard: string[][] = [];
+    const off = onSettingsChanged((_next, changed) => heard.push(changed));
+    updateSettings({ startInTray: !getSettings().startInTray }); // what a tray toggle does
+    updateSettings({ mascotName: getSettings().mascotName }); // same value: nothing to tell
+    updateSettings({ reminderLeadMinutes: [5, 30, 5] });
+    off();
+    updateSettings({ startInTray: !getSettings().startInTray });
+    expect(heard).toEqual([['startInTray'], ['reminderLeadMinutes']]);
+    expect(getSettings().reminderLeadMinutes).toEqual([30, 5]);
   });
 });

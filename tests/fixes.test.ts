@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ReminderPayload, Settings } from '../shared/types';
 import type { Routine } from '../shared/routines';
-import { sanitizePatch } from '../shared/settingsGuard';
+import { applyPatch, DEFAULT_SETTINGS, sanitizePatch } from '../shared/settings';
 import { toEventInput, parseQuickEvent } from '../shared/quickParse';
 import { executeTool, type AgentDeps } from '../electron/agent/agent';
 import { normalizeSuggestion } from '../electron/agent/mailTools';
@@ -18,7 +18,6 @@ import { scoreEmail } from '../electron/services/emailScoring';
 import { holdReminder, releaseReminders } from '../electron/services/reminders';
 import { checkNewEvent, isLocalDate, isLocalDateTime, parseLocal } from '../electron/services/time';
 import { WeatherService } from '../electron/services/weather';
-import { DEFAULT_SETTINGS } from '../electron/store';
 
 const googleFetch = vi.hoisted(() => vi.fn());
 vi.mock('electron', () => ({ app: {}, safeStorage: {}, shell: {} }));
@@ -382,5 +381,21 @@ describe('scoring e-mail keywords', () => {
   it('gives the same result when asked repeatedly (the patterns are reused)', () => {
     const first = scoreEmail(mail('Urgent: invoice overdue'), 'me@b.c');
     for (let i = 0; i < 5; i++) expect(scoreEmail(mail('Urgent: invoice overdue'), 'me@b.c').score).toBe(first.score);
+  });
+});
+
+describe('the settings module', () => {
+  it('accepts every default value back, so no setting is missing a check', () => {
+    for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+      expect(sanitizePatch({ [key]: value }, DEFAULT_SETTINGS), key).toEqual({ [key]: value });
+    }
+  });
+
+  it('applies a patch, tidies the result and lists only what changed', () => {
+    const { next, changed } = applyPatch(DEFAULT_SETTINGS, { widgetScale: 0.3, mascotName: 'Lumi', reminderLeadMinutes: [1, 10, 1], evil: 1 });
+    expect(next.widgetScale).toBe(0.6);
+    expect(next.reminderLeadMinutes).toEqual([10, 1]);
+    expect(changed.sort()).toEqual(['reminderLeadMinutes', 'widgetScale']);
+    expect(applyPatch(DEFAULT_SETTINGS, {}).changed).toEqual([]);
   });
 });
