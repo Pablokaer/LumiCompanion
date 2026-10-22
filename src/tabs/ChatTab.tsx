@@ -42,7 +42,10 @@ export function ChatTab({ chat, setChat, name }: { chat: ChatState; setChat: Dis
   const [voice, setVoice] = useState<'idle' | 'listening' | 'transcribing'>('idle');
   const busy = chat.status.state !== 'idle' || (chat.messages.length > 0 && chat.messages[chat.messages.length - 1].role === 'user' && !chat.error);
 
-  useEffect(() => { api.agent.ollamaStatus().then(setOllama); }, []);
+  useEffect(() => {
+    api.agent.ollamaStatus().then(setOllama);
+    return api.on('ai:state', (s: OllamaStatus) => setOllama(s)); // also when an Inbox action turned it on
+  }, []);
   const aiOn = !!ollama?.running;
 
   // The local AI only runs while you want it: start it before chatting, stop it to free the memory.

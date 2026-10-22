@@ -3,7 +3,7 @@ import path from 'node:path';
 import { nextLocalHour } from '../shared/dnd';
 import type { DndState } from '../shared/dnd';
 import { getSettings, updateSettings } from './store';
-import { applyWidgetMode, getWindow, toggleWindow } from './window';
+import { getWindow, toggleWindow } from './window';
 
 let tray: Tray | null = null;
 
@@ -20,37 +20,34 @@ let dndControls: DndControls | undefined;
 
 const REASON_TEXT = { manual: 'paused by you', fullscreen: 'a full-screen app is on', meeting: 'you are in a meeting' } as const;
 
-export function createTray(onSettingsChanged: () => void, controls?: DndControls) {
+export function createTray(controls?: DndControls) {
   dndControls = controls;
   const iconPath = path.join(__dirname, '../../assets', process.platform === 'darwin' ? 'trayTemplate.png' : 'tray.png');
   const icon = nativeImage.createFromPath(iconPath);
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
   tray.setToolTip('Lumi – your space companion');
   tray.on('click', () => toggleWindow());
-  rebuildTrayMenu(onSettingsChanged);
+  rebuildTrayMenu();
   return tray;
 }
 
-export function rebuildTrayMenu(onSettingsChanged: () => void) {
+/** Rebuilds the menu from the current state. A settings change made here reaches the rest of the app through the settings listeners. */
+export function rebuildTrayMenu() {
   if (!tray) return;
   const s = getSettings();
-  const set = (patch: Parameters<typeof updateSettings>[0]) => {
-    updateSettings(patch);
-    onSettingsChanged();
-    rebuildTrayMenu(onSettingsChanged);
-  };
+  const set = (patch: Parameters<typeof updateSettings>[0]) => { updateSettings(patch); };
   tray.setContextMenu(
     Menu.buildFromTemplate([
       ...(pendingUpdate ? [{ label: `Restart to update to ${pendingUpdate.version}`, click: () => pendingUpdate?.install() }] : []),
       { label: `Show / hide ${s.mascotName}`, accelerator: 'CmdOrCtrl+Shift+L', click: () => toggleWindow() },
-      { label: 'Minimize to tray', enabled: !!getWindow()?.isVisible(), click: () => { getWindow()?.hide(); rebuildTrayMenu(onSettingsChanged); } },
+      { label: 'Minimize to tray', enabled: !!getWindow()?.isVisible(), click: () => { getWindow()?.hide(); rebuildTrayMenu(); } },
       { type: 'separator' },
       ...(dndControls ? [dndMenu(dndControls)] : []),
       {
         label: 'Always on top',
         type: 'checkbox',
         checked: s.widgetMode === 'onTop',
-        click: (item) => { set({ widgetMode: item.checked ? 'onTop' : 'desktop' }); applyWidgetMode(getSettings().widgetMode); },
+        click: (item) => set({ widgetMode: item.checked ? 'onTop' : 'desktop' }),
       },
       {
         label: 'Start with my computer',

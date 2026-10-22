@@ -73,7 +73,8 @@ The local AI is **off** when Lumi opens, so Ollama does not run in the backgroun
 - **Stop AI** unloads every loaded model (this ends Ollama's runner processes and frees their memory) and stops the server Lumi started. A server you started yourself (or that an older Lumi left running) keeps running, with its model unloaded, and Chat tells you so.
 - **Quitting Lumi** stops the server Lumi started in the same way.
 - Settings → Local AI (Ollama) → **"Start the AI when Lumi opens"** (off by default) brings back the old behaviour of starting it a few seconds after Lumi opens.
-- "Draft reply" and "Make event" in the Inbox are explicit AI actions, so they still start the AI by themselves when you click them.
+- "Draft reply" and "Make event" in the Inbox are explicit AI actions, so they start the AI by themselves when you click them (installing it first, like Start AI). The Chat status pill follows along.
+- Answering a file of questions needs the AI on, like chatting.
 - While the AI is off, the background AI features quietly fall back: email triage uses only the heuristic score, news routines use the newest items without a summary, and an instructions routine is shown as a problem ("The local AI is off") until the AI is on at its next run. Quick capture only uses the AI if it is already on.
 
 Only a local server URL is ever started or stopped. If Ollama is off, Calendar, Gmail, reminders and the heuristic email ranking still work. Only the chat and the AI features need the model.
@@ -317,20 +318,25 @@ For development, the feed can be pointed at a local server with the `LUMI_UPDATE
 
 ## Project structure
 
+**Adding a setting:** add it to `Settings` in `shared/types.ts` and its default to `DEFAULT_SETTINGS` in `shared/settings.ts` (plus a check there unless it is a boolean; a test fails if a default does not pass its own check). If changing it must do something right away, add a line to the `onSettingsChanged` listener in `electron/main.ts`; that listener runs for every saved change, whether it came from the panel, the tray or the app itself. The browser mock and the test fixtures start from `DEFAULT_SETTINGS`, so they need no edit.
+
+**Adding an IPC call:** add the method to `LumiApi` in `shared/types.ts`; its channel is `group:method` (`updates` uses `update:`). Then expose it in `electron/preload.ts` with `invoke('group:method', …)`, register it in `electron/main.ts` with `handle('group:method', …)` and add it to the mock in `src/api.ts`. The compiler checks the channel names and the handler's arguments and result against `LumiApi`, and `tests/ipcContract.test.ts` fails if the preload exposes a call that main.ts does not handle. For a push event, add it to `LumiEvents` (its payload type); the preload's allow-list, main's `send` and the renderer's `api.on` are all typed by it.
+
 ```
 electron/              Main process (Node)
   main.ts              App bootstrap, IPC handlers, notifications, global shortcut
   window.ts            Widget window: compact/expanded, size per widget view, desktop vs on-top, peek
   tray.ts              Tray / menu-bar icon and menu
   preload.ts           Secure bridge → window.lumi (contextIsolation + sandbox)
-  store.ts             Settings, encrypted tokens, OAuth client config
+  ipc.ts               Typed `handle` (invoke channels) and `sendEvent` (push events) for the IPC contract in shared/types.ts
+  store.ts             Saves settings (and tells onSettingsChanged listeners), encrypted tokens, OAuth client config
   google/              auth.ts (OAuth PKCE), calendar.ts (incl. month ranges), gmail.ts (incl. full messages and drafts)
   docs/                assignment.ts (answer pipeline), extract.ts (docx/pdf/txt), sources.ts (OpenAlex + citations), googleDocs.ts
-  agent/               ollama.ts (HTTP client, start/stop, per-task models), agent.ts (tool-calling loop + email triage), mailTools.ts (draft replies, email → event)
+  agent/               localAi.ts (the AI on/off: the only place that starts, stops or requires Ollama), ollama.ts (HTTP client, server start/stop, per-task models), agent.ts (tool-calling loop + email triage), mailTools.ts (draft replies, email → event)
   voice/               transcribe.ts (local Whisper speech-to-text)
   updater.ts           Update service: electron-updater for Windows/AppImage, macUpdate.ts for macOS, release-page check elsewhere
   macUpdate.ts         macOS self-update: feed parsing, verified download, in-place swap script
-  services/            sync.ts (polling), reminders.ts, emailScoring.ts, routines.ts (scheduler for the routines), time.ts, briefing.ts, focus.ts, dnd.ts (do-not-disturb + Windows full-screen probe via koffi), weather.ts (Open-Meteo + location)
+  services/            interruptions.ts (the one place that decides whether a reminder, notification or peek shows now, waits or is dropped: quiet mode, focus, calendar-only), sync.ts (polling), reminders.ts, emailScoring.ts, routines.ts (scheduler for the routines), time.ts, briefing.ts, focus.ts, dnd.ts (do-not-disturb + Windows full-screen probe via koffi), weather.ts (Open-Meteo + location)
   routines/            feeds.ts (RSS/Atom parsing, feed discovery, Google News and Hacker News searches), runner.ts (one run: new items, AI pick and summary, or the report of an instructions routine)
   quickCapture.ts      Global shortcut and the small quick-capture window
 shared/types.ts        Types shared by main + renderer
@@ -339,7 +345,7 @@ shared/dnd.ts          Do-not-disturb rules (manual, full-screen, meeting)
 shared/meeting.ts      Meeting-link detection, safe-link allow-list, join window
 shared/quickParse.ts   English/Portuguese sentence → event parser
 shared/routines.ts     Routine and news types, presets, validation and the "is it due" rule
-shared/settingsGuard.ts  Checks a settings patch from the renderer (known keys, types, ranges, AI server address)
+shared/settings.ts     The settings module: defaults, the check for every key, and applyPatch (tidies a change and lists what changed)
 shared/weather.ts      Weather codes, seasons, automatic look and falling particles
 shared/proactive.ts    Tip engine (cooldowns, activity tracking)
 shared/notices.ts      System reactions (battery, network, audio devices, lock)
@@ -352,6 +358,7 @@ src/                   React renderer (space UI)
   Gallery.tsx          Browser-preview gallery of every shape and accessory (`?gallery=1`)
   behavior.ts          Pure logic for the star's spontaneous actions
   face.ts              Pure logic for her expression (eyes and mouth) and overall mood
+  speech.ts            What her speech bubble says (priority order, calendar-only mode) and how often an action gets a line
   interaction.ts       Pure state machine for her reactions to the mouse (giggle, purr, bite)
   gaze.ts              Pure controllers for where her eyes look (cursor following, wandering) and when she blinks
   dance.ts             Pure choreography: pose for a position in the beat

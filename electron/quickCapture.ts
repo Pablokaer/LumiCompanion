@@ -1,5 +1,6 @@
 import { BrowserWindow, globalShortcut, screen } from 'electron';
 import path from 'node:path';
+import { sendEvent } from './ipc';
 
 /**
  * Quick capture: a global shortcut opens a small floating window where you type something like
@@ -50,7 +51,7 @@ export class QuickCapture {
     win.show();
     win.focus();
     // Tell the page to clear itself and focus the input (it may still be loading the first time).
-    const reset = () => win.webContents.send('quick:show');
+    const reset = () => sendEvent(win.webContents, 'quick:show');
     if (win.webContents.isLoading()) win.webContents.once('did-finish-load', reset); else reset();
   }
 

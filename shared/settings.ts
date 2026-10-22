@@ -1,9 +1,62 @@
 import type { Accessory, Settings, Shape, Skin, WidgetMode, WidgetView } from './types';
 
 /**
- * Settings come into the main process from the renderer, so a patch is checked here instead of being
- * trusted: unknown keys and values of the wrong type or outside their range are dropped, never saved.
+ * Everything about a setting except where it is stored: its default, how a change is checked, and the
+ * clean-up applied to the result. Settings come into the main process from the renderer, so a patch is
+ * checked here instead of being trusted: unknown keys and values of the wrong type or outside their
+ * range are dropped, never saved. `applyPatch` is the one way to change settings.
  */
+
+export const DEFAULT_SETTINGS: Settings = {
+  mascotName: 'Lumi',
+  widgetMode: 'desktop',
+  widgetView: 'mascot',
+  widgetScale: 1,
+  panelScale: 1,
+  startInTray: false,
+  skin: 'classic',
+  customColor: '#ff6fae',
+  colorSwatches: [],
+  shape: 'star',
+  accessories: [],
+  mascotLife: true,
+  followMouse: true,
+  petReactions: true,
+  dndFullscreen: true,
+  dndMeetings: false,
+  dndHideWidget: true,
+  quickCapture: true,
+  quickCaptureShortcut: 'CommandOrControl+Shift+Space',
+  weather: true,
+  weatherPlace: '',
+  temperatureUnit: 'c',
+  seasonalLook: true,
+  reactToSystem: true,
+  proactiveTips: true,
+  tipFrequency: 'normal',
+  calendarPopupsOnly: false,
+  keepSignedIn: true,
+  sleepAfterMinutes: 3,
+  reactToMusic: true,
+  autoUpdate: true,
+  autoInstallUpdates: true,
+  startAiOnLaunch: false,
+  autoSetupOllama: true,
+  morningBriefing: true,
+  briefingTime: '08:00',
+  focusMinutes: 25,
+  voiceLanguage: 'system',
+  launchAtLogin: true,
+  reminderLeadMinutes: [15, 5],
+  systemNotifications: true,
+  ollamaUrl: 'http://127.0.0.1:11434',
+  ollamaModel: 'qwen2.5:7b',
+  modelChat: '',
+  modelTriage: '',
+  modelWriting: '',
+  aiEmailTriage: true,
+  emailLookbackDays: 2,
+};
 
 const SKINS = ['classic', 'nebula', 'sunset', 'mint', 'mono', 'custom'] as const satisfies readonly Skin[];
 const SHAPES = ['star', 'chubby', 'sparkle', 'hexa', 'planet', 'earth', 'moon', 'sun', 'comet'] as const satisfies readonly Shape[];
@@ -46,7 +99,7 @@ const CHECKS: Partial<Record<keyof Settings, Check>> = {
   mascotName: text(20, { min: 1 }),
   widgetMode: oneOf(WIDGET_MODES),
   widgetView: oneOf(WIDGET_VIEWS),
-  widgetScale: (v) => (typeof v === 'number' && Number.isFinite(v) ? v : INVALID), // clamped to 0.6-1 by the store
+  widgetScale: (v) => (typeof v === 'number' && Number.isFinite(v) ? v : INVALID), // clamped to 0.6-1 by applyPatch
   panelScale: (v) => (typeof v === 'number' && Number.isFinite(v) ? v : INVALID),
   skin: oneOf(SKINS),
   customColor: (v) => (typeof v === 'string' && HEX.test(v) ? v.toLowerCase() : INVALID),
@@ -93,4 +146,23 @@ export function sanitizePatch(patch: unknown, defaults: Settings): Partial<Setti
     }
   }
   return out as Partial<Settings>;
+}
+
+/** The widget size factor, kept between 0.6 and 1. */
+export const clampScale = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? Math.min(1, Math.max(0.6, Math.round(n * 100) / 100)) : 1);
+
+/**
+ * Applies a patch (usually from the renderer) to the current settings: only known settings with valid
+ * values get through, and the result is tidied (sorted lead times, clamped sizes). `changed` lists the
+ * keys whose value is now different, so callers react only to real changes.
+ */
+export function applyPatch(current: Settings, patch: unknown): { next: Settings; changed: (keyof Settings)[] } {
+  const next = { ...current, ...sanitizePatch(patch, DEFAULT_SETTINGS) };
+  next.reminderLeadMinutes = [...new Set(next.reminderLeadMinutes.filter((n) => Number.isFinite(n) && n >= 0))].sort((a, b) => b - a);
+  next.emailLookbackDays = Math.min(14, Math.max(1, Math.round(next.emailLookbackDays || 2)));
+  next.widgetScale = clampScale(next.widgetScale);
+  next.panelScale = clampScale(next.panelScale);
+  const keys = new Set([...Object.keys(current), ...Object.keys(next)] as (keyof Settings)[]);
+  const changed = [...keys].filter((k) => JSON.stringify(current[k]) !== JSON.stringify(next[k]));
+  return { next, changed };
 }

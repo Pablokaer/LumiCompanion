@@ -2,61 +2,11 @@ import { app, safeStorage } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { migrateAppearance } from '../shared/appearance';
-import { sanitizePatch } from '../shared/settingsGuard';
+import { applyPatch, DEFAULT_SETTINGS } from '../shared/settings';
 import type { NewsItem, Routine } from '../shared/routines';
 import type { Settings } from '../shared/types';
 import type { RoutineStorage } from './services/routines';
 
-export const DEFAULT_SETTINGS: Settings = {
-  mascotName: 'Lumi',
-  widgetMode: 'desktop',
-  widgetView: 'mascot',
-  widgetScale: 1,
-  panelScale: 1,
-  startInTray: false,
-  skin: 'classic',
-  customColor: '#ff6fae',
-  colorSwatches: [],
-  shape: 'star',
-  accessories: [],
-  mascotLife: true,
-  followMouse: true,
-  petReactions: true,
-  dndFullscreen: true,
-  dndMeetings: false,
-  dndHideWidget: true,
-  quickCapture: true,
-  quickCaptureShortcut: 'CommandOrControl+Shift+Space',
-  weather: true,
-  weatherPlace: '',
-  temperatureUnit: 'c',
-  seasonalLook: true,
-  reactToSystem: true,
-  proactiveTips: true,
-  tipFrequency: 'normal',
-  calendarPopupsOnly: false,
-  keepSignedIn: true,
-  sleepAfterMinutes: 3,
-  reactToMusic: true,
-  autoUpdate: true,
-  autoInstallUpdates: true,
-  startAiOnLaunch: false,
-  autoSetupOllama: true,
-  morningBriefing: true,
-  briefingTime: '08:00',
-  focusMinutes: 25,
-  voiceLanguage: 'system',
-  launchAtLogin: true,
-  reminderLeadMinutes: [15, 5],
-  systemNotifications: true,
-  ollamaUrl: 'http://127.0.0.1:11434',
-  ollamaModel: 'qwen2.5:7b',
-  modelChat: '',
-  modelTriage: '',
-  modelWriting: '',
-  aiEmailTriage: true,
-  emailLookbackDays: 2,
-};
 
 const userFile = (name: string) => path.join(app.getPath('userData'), name);
 
@@ -83,6 +33,8 @@ function writeJson(file: string, data: unknown) {
 // ---------- Settings ----------
 
 let settingsCache: Settings | undefined;
+type SettingsListener = (next: Settings, changed: (keyof Settings)[]) => void;
+const settingsListeners = new Set<SettingsListener>();
 
 export function getSettings(): Settings {
   if (!settingsCache) {
@@ -91,20 +43,19 @@ export function getSettings(): Settings {
   return settingsCache;
 }
 
-/** The widget size factor, kept between 0.6 and 1. */
-export const clampScale = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? Math.min(1, Math.max(0.6, Math.round(n * 100) / 100)) : 1);
-
+/** Saves a (checked) change and tells every listener which settings really changed, wherever the change came from. */
 export function updateSettings(patch: Partial<Settings>): Settings {
-  // The patch usually comes from the renderer: only known settings with valid values get through.
-  const next = { ...getSettings(), ...sanitizePatch(patch, DEFAULT_SETTINGS) };
-  next.reminderLeadMinutes = [...new Set(next.reminderLeadMinutes.filter((n) => Number.isFinite(n) && n >= 0))]
-    .sort((a, b) => b - a);
-  next.emailLookbackDays = Math.min(14, Math.max(1, Math.round(next.emailLookbackDays || 2)));
-  next.widgetScale = clampScale(next.widgetScale);
-  next.panelScale = clampScale(next.panelScale);
+  const { next, changed } = applyPatch(getSettings(), patch);
   settingsCache = next;
   writeJson(userFile('settings.json'), next);
+  if (changed.length) settingsListeners.forEach((l) => l(next, changed));
   return next;
+}
+
+/** Runs `listener` after every saved change. Returns a function that stops it. */
+export function onSettingsChanged(listener: SettingsListener) {
+  settingsListeners.add(listener);
+  return () => { settingsListeners.delete(listener); };
 }
 
 // ---------- Window position ----------

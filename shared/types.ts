@@ -1,5 +1,6 @@
 // Types shared between the Electron main process and the React renderer.
 import type { DndState } from './dnd';
+import type { SystemKind } from './notices';
 import type { NewsItem, Routine, RoutineInput } from './routines';
 import type { WeatherState } from './weather';
 
@@ -398,8 +399,49 @@ export interface LumiApi {
     hide(): Promise<void>;
     openExternal(url: string): Promise<void>;
   };
-  on(
-    channel: 'reminder' | 'data:updated' | 'agent:confirm' | 'agent:status' | 'auth:changed' | 'settings:changed' | 'focus:changed' | 'briefing' | 'activity' | 'update:state' | 'cursor' | 'dnd:state' | 'weather:state' | 'system' | 'power' | 'quick:show' | 'ollama:setup' | 'routines:updated' | 'news:updated',
-    listener: (payload: any) => void,
-  ): () => void;
+  on<K extends LumiEvent>(channel: K, listener: (payload: LumiEvents[K]) => void): () => void;
 }
+
+/**
+ * The IPC contract. Every push event from the main process and its payload; `send` in main.ts and
+ * `api.on` in the renderer are both typed by this map, and the preload's allow-list must name every key.
+ */
+export interface LumiEvents {
+  reminder: ReminderPayload;
+  'data:updated': DataSnapshot;
+  'agent:confirm': ConfirmRequest;
+  'agent:status': AgentStatus;
+  'auth:changed': AuthState;
+  'settings:changed': undefined;
+  'focus:changed': FocusState | undefined;
+  briefing: Briefing;
+  activity: { idleSeconds: number };
+  'update:state': UpdateState;
+  cursor: { x: number; y: number };
+  'dnd:state': DndState;
+  'weather:state': WeatherState;
+  system: { kind: SystemKind };
+  power: { hidden: boolean };
+  'quick:show': undefined;
+  'ollama:setup': OllamaSetupState;
+  'routines:updated': Routine[];
+  'news:updated': NewsItem[];
+  'ai:state': OllamaStatus;
+}
+export type LumiEvent = keyof LumiEvents;
+
+/**
+ * Every invoke channel with its call, derived from LumiApi: `api.agent.send` is 'agent:send' (the
+ * `updates` group uses the 'update:' prefix). The preload and main.ts's `handle` are typed by it, so a
+ * misspelt channel or a handler with the wrong arguments does not compile.
+ */
+type ApiGroups = Omit<LumiApi, 'on'>;
+type ChannelPrefix<G extends string> = G extends 'updates' ? 'update' : G;
+type GroupChannels<G extends keyof ApiGroups & string> = {
+  [M in keyof ApiGroups[G] & string as `${ChannelPrefix<G>}:${M}`]: ApiGroups[G][M];
+};
+type UnionToIntersection<U> = (U extends unknown ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
+export type IpcChannels = UnionToIntersection<{ [G in keyof ApiGroups & string]: GroupChannels<G> }[keyof ApiGroups & string]>;
+export type IpcChannel = keyof IpcChannels & string;
+/** The arguments and result of one invoke channel. */
+export type IpcCall<K extends IpcChannel> = IpcChannels[K] extends (...args: infer A) => infer R ? { args: A; result: R } : never;

@@ -7,14 +7,12 @@ import { stripThinking, type OllamaMessage } from '../electron/agent/ollama';
 import { rankEmails, scoreEmail } from '../electron/services/emailScoring';
 import { ReminderScheduler } from '../electron/services/reminders';
 import { addMinutesLocal, parseLocal } from '../electron/services/time';
+import { DEFAULT_SETTINGS } from '../shared/settings';
 
 // The pure modules under test transitively import electron via ../store; stub it.
 vi.mock('electron', () => ({ app: {}, safeStorage: {}, shell: {} }));
 
-const settings: Settings = {
-  mascotName: 'Lumi', widgetMode: 'desktop', widgetView: 'mascot', widgetScale: 1, panelScale: 1, startInTray: false, skin: 'classic', customColor: '#ff6fae', colorSwatches: [], shape: 'star', accessories: [], mascotLife: true, followMouse: true, petReactions: true, dndFullscreen: true, dndMeetings: false, dndHideWidget: true, quickCapture: true, quickCaptureShortcut: 'CommandOrControl+Shift+Space', weather: true, weatherPlace: '', temperatureUnit: 'c', seasonalLook: true, reactToSystem: true, proactiveTips: true, tipFrequency: 'normal', calendarPopupsOnly: false, keepSignedIn: true, autoSetupOllama: true, sleepAfterMinutes: 3, reactToMusic: true, autoUpdate: true, autoInstallUpdates: true, startAiOnLaunch: false, morningBriefing: false, briefingTime: '08:00', focusMinutes: 25, voiceLanguage: 'system', modelChat: '', modelTriage: '', modelWriting: '', launchAtLogin: false, reminderLeadMinutes: [15, 5], systemNotifications: true,
-  ollamaUrl: 'http://x', ollamaModel: 'm', aiEmailTriage: true, emailLookbackDays: 2,
-};
+const settings: Settings = { ...DEFAULT_SETTINGS, morningBriefing: false, launchAtLogin: false, ollamaUrl: 'http://x', ollamaModel: 'm' };
 
 const ev = (id: string, startInMin: number, now: Date, allDay = false): CalendarEvent => ({
   id, title: `Event ${id}`, allDay,

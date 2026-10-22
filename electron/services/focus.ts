@@ -1,12 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type { FocusState } from '../../shared/types';
 
-/** Reminders further away than this are held back during a focus session. */
-export const FOCUS_URGENT_MINUTES = 5;
-
-export const shouldHoldReminder = (focusActive: boolean, minutesUntil: number) =>
-  focusActive && minutesUntil > FOCUS_URGENT_MINUTES;
-
 /** A single countdown. Emits 'changed' (FocusState | undefined) and 'done' when it runs out. */
 export class FocusService extends EventEmitter {
   private state?: FocusState;
