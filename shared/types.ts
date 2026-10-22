@@ -399,7 +399,7 @@ export interface LumiApi {
     openExternal(url: string): Promise<void>;
   };
   on(
-    channel: 'reminder' | 'data:updated' | 'agent:confirm' | 'agent:status' | 'auth:changed' | 'settings:changed' | 'focus:changed' | 'briefing' | 'activity' | 'update:state' | 'cursor' | 'dnd:state' | 'weather:state' | 'system' | 'power' | 'quick:show' | 'ollama:setup' | 'routines:updated' | 'news:updated',
+    channel: 'reminder' | 'data:updated' | 'agent:confirm' | 'agent:status' | 'auth:changed' | 'settings:changed' | 'focus:changed' | 'briefing' | 'activity' | 'update:state' | 'cursor' | 'dnd:state' | 'weather:state' | 'system' | 'power' | 'quick:show' | 'ollama:setup' | 'routines:updated' | 'news:updated' | 'ai:state',
     listener: (payload: any) => void,
   ): () => void;
 }

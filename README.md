@@ -73,7 +73,8 @@ The local AI is **off** when Lumi opens, so Ollama does not run in the backgroun
 - **Stop AI** unloads every loaded model (this ends Ollama's runner processes and frees their memory) and stops the server Lumi started. A server you started yourself (or that an older Lumi left running) keeps running, with its model unloaded, and Chat tells you so.
 - **Quitting Lumi** stops the server Lumi started in the same way.
 - Settings → Local AI (Ollama) → **"Start the AI when Lumi opens"** (off by default) brings back the old behaviour of starting it a few seconds after Lumi opens.
-- "Draft reply" and "Make event" in the Inbox are explicit AI actions, so they still start the AI by themselves when you click them.
+- "Draft reply" and "Make event" in the Inbox are explicit AI actions, so they start the AI by themselves when you click them (installing it first, like Start AI). The Chat status pill follows along.
+- Answering a file of questions needs the AI on, like chatting.
 - While the AI is off, the background AI features quietly fall back: email triage uses only the heuristic score, news routines use the newest items without a summary, and an instructions routine is shown as a problem ("The local AI is off") until the AI is on at its next run. Quick capture only uses the AI if it is already on.
 
 Only a local server URL is ever started or stopped. If Ollama is off, Calendar, Gmail, reminders and the heuristic email ranking still work. Only the chat and the AI features need the model.
@@ -328,7 +329,7 @@ electron/              Main process (Node)
   store.ts             Saves settings (and tells onSettingsChanged listeners), encrypted tokens, OAuth client config
   google/              auth.ts (OAuth PKCE), calendar.ts (incl. month ranges), gmail.ts (incl. full messages and drafts)
   docs/                assignment.ts (answer pipeline), extract.ts (docx/pdf/txt), sources.ts (OpenAlex + citations), googleDocs.ts
-  agent/               ollama.ts (HTTP client, start/stop, per-task models), agent.ts (tool-calling loop + email triage), mailTools.ts (draft replies, email → event)
+  agent/               localAi.ts (the AI on/off: the only place that starts, stops or requires Ollama), ollama.ts (HTTP client, server start/stop, per-task models), agent.ts (tool-calling loop + email triage), mailTools.ts (draft replies, email → event)
   voice/               transcribe.ts (local Whisper speech-to-text)
   updater.ts           Update service: electron-updater for Windows/AppImage, macUpdate.ts for macOS, release-page check elsewhere
   macUpdate.ts         macOS self-update: feed parsing, verified download, in-place swap script

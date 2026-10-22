@@ -11,7 +11,7 @@ import { weatherSummary } from '../shared/weather';
 import { runAgent, type AgentDeps } from './agent/agent';
 import { applyMemoryFlags } from './memoryFlags';
 import { draftReply, eventFromText, suggestEventFromEmail } from './agent/mailTools';
-import { ensureOllama, ollamaStatus, startedByLumi, stopOllama } from './agent/ollama';
+import { LocalAi } from './agent/localAi';
 import { OllamaSetup } from './agent/ollamaSetup';
 import { answerAssignment } from './docs/assignment';
 import { SUPPORTED_EXTENSIONS } from './docs/extract';
@@ -54,6 +54,11 @@ const pickedFiles = new Set<string>();
 const focus = new FocusService();
 const updates = new UpdateService();
 const ollamaSetup = new OllamaSetup();
+const localAi = new LocalAi({
+  getSettings,
+  setup: (url, model) => ollamaSetup.ensure(url, model),
+  allowSetup: !process.env.LUMI_NO_AUTOSETUP,
+});
 let notifiedUpdate = '';
 
 const dnd = new DndService({
@@ -68,7 +73,7 @@ const routines = new RoutineService({
     getSettings,
     // A "task" routine: the agent follows the user's instructions with nobody there, so it can only read.
     runTask: async (routine) => {
-      if (!(await ollamaStatus(getSettings().ollamaUrl)).running) throw new Error('The local AI is off. Start it in the Chat tab.');
+      await localAi.require();
       return runAgent([{ role: 'user', content: routine.target }], {
         ...agentDeps(),
         unattended: true,
@@ -97,24 +102,6 @@ function notify(title: string, body: string, onClick?: () => void): boolean {
 /** Brings the widget to the front for a moment, unless do-not-disturb is on. */
 const peekUnlessQuiet = (ms?: number) => { if (!dnd.state.active) peek(ms); };
 
-/** Starts Ollama when it is installed but stopped. Attempts are rate-limited so a broken install is not retried constantly. */
-let ollamaAttempt: { at: number; promise: Promise<unknown> } | undefined;
-function tryStartOllama() {
-  if (ollamaAttempt && Date.now() - ollamaAttempt.at < 60_000) return ollamaAttempt.promise;
-  ollamaAttempt = { at: Date.now(), promise: ensureOllama(getSettings().ollamaUrl) };
-  return ollamaAttempt.promise;
-}
-
-/**
- * Turns the local AI on ("Start AI", or "Start the AI when Lumi opens"): with automatic setup on, a
- * missing Ollama or model is installed first (progress arrives as 'ollama:setup' events).
- */
-async function startAi() {
-  const s = getSettings();
-  if (s.autoSetupOllama && !process.env.LUMI_NO_AUTOSETUP) await ollamaSetup.ensure(s.ollamaUrl, s.ollamaModel);
-  else await ensureOllama(s.ollamaUrl);
-  return ollamaStatus(s.ollamaUrl);
-}
 
 /** Shows a reminder: in the app, as a popup, and as a notification that joins the call when you click it. */
 function announceReminder(r: ReminderPayload) {
@@ -258,7 +245,8 @@ async function bootstrap() {
   setInterval(() => send('activity', { idleSeconds: powerMonitor.getSystemIdleTime() }), 5_000);
   ollamaSetup.on('state', (s) => send('ollama:setup', s));
   // The local AI is off until you start it in Chat, unless you asked for it when Lumi opens.
-  if (getSettings().startAiOnLaunch) setTimeout(() => void startAi(), 8_000);
+  localAi.on('state', (s) => send('ai:state', s));
+  if (getSettings().startAiOnLaunch) setTimeout(() => void localAi.start(), 8_000);
 
   // ---- do not disturb ----
   dnd.on('state', (state, was) => {
@@ -373,18 +361,15 @@ function registerIpc() {
   // --- Agent ---
   ipcMain.handle('agent:setupOllama', () => ollamaSetup.ensure(getSettings().ollamaUrl, getSettings().ollamaModel));
   ipcMain.handle('agent:setupState', () => ollamaSetup.current);
-  ipcMain.handle('agent:ollamaStatus', () => ollamaStatus(getSettings().ollamaUrl));
-  ipcMain.handle('agent:startAi', () => startAi());
-  ipcMain.handle('agent:stopAi', async () => {
-    const { external } = await stopOllama(getSettings().ollamaUrl);
-    return { status: await ollamaStatus(getSettings().ollamaUrl), external };
-  });
+  ipcMain.handle('agent:ollamaStatus', () => localAi.state());
+  ipcMain.handle('agent:startAi', () => localAi.start());
+  ipcMain.handle('agent:stopAi', () => localAi.stop());
   ipcMain.handle('agent:respondConfirm', (_e, id: string, approved: boolean) => {
     pendingConfirms.get(id)?.(approved);
     pendingConfirms.delete(id);
   });
   ipcMain.handle('agent:send', async (_e, history: ChatMessage[]) => {
-    if (!(await ollamaStatus(getSettings().ollamaUrl)).running) throw new Error('The local AI is off. Click “Start AI” first.');
+    await localAi.require();
     return runAgent(history, agentDeps());
   });
 
@@ -407,7 +392,7 @@ function registerIpc() {
     if (isUnderstood(parsed)) return { event: toEventInput(parsed), understood: true, via: 'rules' };
     // No date or time in the words: ask the local model, if it happens to be running.
     try {
-      if ((await ollamaStatus(getSettings().ollamaUrl)).running) {
+      if (await localAi.isOn()) {
         const event = await eventFromText(input, getSettings());
         if (event) return { event, understood: true, via: 'ai' };
       }
@@ -449,7 +434,8 @@ function registerIpc() {
   // --- Mail helpers: draft a reply, turn an email into an event ---
   const EMAIL_ADDRESS = /^[^\s<>@,;]+@[^\s<>@,;]+$/;
   ipcMain.handle('mail:draftReply', async (_e, emailId: string, instructions?: string): Promise<EmailDraft> => {
-    await tryStartOllama();
+    await localAi.start(); // an explicit AI action turns the AI on
+    await localAi.require();
     const [email, profile] = await Promise.all([getFullEmail(String(emailId)), getProfile().catch(() => undefined)]);
     return draftReply(email, instructions ? String(instructions).slice(0, 1000) : undefined, profile?.name, getSettings());
   });
@@ -461,7 +447,8 @@ function registerIpc() {
     return { url: 'https://mail.google.com/mail/u/0/#drafts' };
   });
   ipcMain.handle('mail:suggestEvent', async (_e, emailId: string) => {
-    await tryStartOllama();
+    await localAi.start(); // an explicit AI action turns the AI on
+    await localAi.require();
     return suggestEventFromEmail(await getFullEmail(String(emailId)), getSettings());
   });
 
@@ -495,6 +482,7 @@ function registerIpc() {
     // Only files the user chose in the picker may be read.
     if (!pickedFiles.has(file)) throw new Error('Please choose the file again.');
     if (!hasScope('documents')) throw new Error('Lumi needs Google Docs permission. Sign out in Settings and sign in again, then accept the Docs access.');
+    await localAi.require();
     try {
       return await answerAssignment(file, { settings: getSettings(), onProgress: (message) => send('agent:status', { state: 'progress', message }) });
     } finally {
@@ -535,10 +523,11 @@ function registerIpc() {
 // Quitting also turns off the local AI Lumi started, so nothing keeps running in the background.
 let aiStopped = false;
 app.on('before-quit', (e) => {
-  if (aiStopped || !startedByLumi(getSettings().ollamaUrl)) return;
+  const stopping = aiStopped ? undefined : localAi.stopForQuit();
+  if (!stopping) return;
   e.preventDefault();
   aiStopped = true;
-  void Promise.race([stopOllama(getSettings().ollamaUrl), new Promise((r) => setTimeout(r, 4000))]).finally(() => app.quit());
+  void Promise.race([stopping, new Promise((r) => setTimeout(r, 4000))]).finally(() => app.quit());
 });
 app.on('will-quit', () => { updates.applyOnQuit(); if (!getSettings().keepSignedIn) clearTokens(); dnd.stop(); weather.stop(); routines.stop(); quick.dispose(); globalShortcut.unregisterAll(); });
 // Keep running in the tray when the window is closed.
