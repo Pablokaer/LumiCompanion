@@ -21,8 +21,8 @@ import { createEvent, listEventsInRange, listUpcomingEvents } from './google/cal
 import { createDraft, getFullEmail, searchEmails } from './google/gmail';
 import { briefingDate, buildBriefing, shouldShowBriefing } from './services/briefing';
 import { DndService } from './services/dnd';
-import { FocusService, shouldHoldReminder } from './services/focus';
-import { holdReminder, releaseReminders } from './services/reminders';
+import { FocusService } from './services/focus';
+import { Interruptions } from './services/interruptions';
 import { RoutineService } from './services/routines';
 import { SyncService } from './services/sync';
 import { WeatherService } from './services/weather';
@@ -84,57 +84,42 @@ const routines = new RoutineService({
   },
 });
 const quick = new QuickCapture();
-/** Reminders that came due while she was asked to be quiet or you were focusing; shown when that ends. */
-let heldReminders: ReminderPayload[] = [];
 let hiddenByDnd = false;
 /** The screen is locked or the computer is asleep. */
 let screenLocked = false;
 
-/** Shows a system notification, unless notifications are off or do-not-disturb is on. Returns whether it was shown. */
-function notify(title: string, body: string, onClick?: () => void): boolean {
-  if (!getSettings().systemNotifications || !Notification.isSupported() || dnd.state.active) return false;
-  const n = new Notification({ title: `${getSettings().mascotName} ✦ ${title}`, body, silent: false });
-  if (onClick) n.on('click', onClick);
-  n.show();
-  return true;
-}
+const showWindow = () => { const w = getWindow(); w?.show(); w?.focus(); };
 
-/** Brings the widget to the front for a moment, unless do-not-disturb is on. */
-const peekUnlessQuiet = (ms?: number) => { if (!dnd.state.active) peek(ms); };
-
-
-/** Shows a reminder: in the app, as a popup, and as a notification that joins the call when you click it. */
-function announceReminder(r: ReminderPayload) {
-  send('reminder', r);
-  peekUnlessQuiet();
-  const join = r.event.joinUrl && isAllowedExternalUrl(r.event.joinUrl) ? r.event.joinUrl : undefined;
-  notify(r.event.title, join ? `${r.message} Click to join the call.` : r.message, () => {
-    if (join) { void shell.openExternal(join); return; }
-    const w = getWindow(); w?.show(); w?.focus();
-  });
-}
-
-/** Shows the reminders that came due while she was asked to be quiet or you were focusing. */
-function releaseHeldReminders() {
-  const relevant = releaseReminders(heldReminders);
-  heldReminders = [];
-  if (!relevant.length) return;
-  announceReminder(relevant[0]);
-  if (relevant.length > 1) notify('While you were busy', `${relevant.length} reminders came up: ${relevant.map((h) => h.event.title).join(', ')}.`);
-}
+/** What may interrupt you, and when: quiet mode, focus and "calendar pop-ups only" are decided there. */
+const interruptions = new Interruptions({
+  quiet: () => ({ dnd: dnd.state.active, focus: !!focus.current, calendarOnly: getSettings().calendarPopupsOnly }),
+  showReminder: (r) => send('reminder', r),
+  peek: (ms) => peek(ms),
+  systemNotify: (title, body, onClick) => {
+    if (!getSettings().systemNotifications || !Notification.isSupported()) return false;
+    const n = new Notification({ title: `${getSettings().mascotName} ✦ ${title}`, body, silent: false });
+    if (onClick) n.on('click', onClick);
+    n.show();
+    return true;
+  },
+  onReminderClick: (r) => {
+    // Clicking a reminder joins the call (only links to known meeting services), or opens Lumi.
+    if (r.event.joinUrl && isAllowedExternalUrl(r.event.joinUrl)) void shell.openExternal(r.event.joinUrl);
+    else showWindow();
+  },
+});
 
 function showBriefing(markShown: boolean) {
   void getProfile().catch(() => undefined).then((p) => {
     const briefing = buildBriefing(sync.data.events, sync.data.emails, new Date(), p?.name, weatherSummary(weather.state, getSettings().temperatureUnit));
     send('briefing', briefing);
-    peekUnlessQuiet(30_000);
-    notify(briefing.title, briefing.lines.slice(0, 4).join('\n'));
+    interruptions.notify(briefing.title, briefing.lines.slice(0, 4).join('\n'), { peek: 30_000 });
     if (markShown) updateSettings({ lastBriefingDate: briefingDate(new Date()) });
   });
 }
 
 function checkBriefing() {
-  if (!sync.data.lastSync || dnd.state.active || getSettings().calendarPopupsOnly || !shouldShowBriefing(getSettings())) return; // while quiet, it waits
+  if (!sync.data.lastSync || !interruptions.briefingMayShow() || !shouldShowBriefing(getSettings())) return; // while quiet, it waits
   showBriefing(true);
 }
 
@@ -185,19 +170,14 @@ async function bootstrap() {
 
   sync.on('updated', (snapshot) => send('data:updated', snapshot));
   sync.on('signed-out', async () => { sync.reset(); dropSession(); send('auth:changed', await getAuthState()); });
-  sync.on('reminder', (r: ReminderPayload) => {
-    // Held back while quiet, or while focusing (urgent ones, 5 minutes or less, still come through). They are shown when it ends.
-    if (dnd.state.active || shouldHoldReminder(!!focus.current, r.minutesUntil)) { heldReminders = holdReminder(heldReminders, r); return; }
-    announceReminder(r);
-  });
+  sync.on('reminder', (r: ReminderPayload) => interruptions.reminder(r));
 
   focus.on('changed', (state) => {
     send('focus:changed', state);
-    if (!state && !dnd.state.active) releaseHeldReminders();
+    interruptions.quietChanged();
   });
   focus.on('done', (state: { minutes: number }) => {
-    peekUnlessQuiet();
-    notify('Focus session complete', `${state.minutes} focused minutes — nice work! Time for a short break.`);
+    interruptions.notify('Focus session complete', `${state.minutes} focused minutes — nice work! Time for a short break.`, { peek: true });
   });
   setInterval(checkBriefing, 60_000);
   updates.on('state', (s) => {
@@ -212,7 +192,7 @@ async function bootstrap() {
       const body = s.status === 'ready'
         ? (automatic ? 'It installs by itself when you are away. Use the tray menu to restart now.' : 'Restart Lumi to finish updating.')
         : s.notifyOnly ? 'Open Lumi to download the new version.' : 'Open Lumi and click Update.';
-      if (notify(`Lumi ${s.version} is ${s.status === 'ready' ? 'ready' : 'available'}`, body)) notifiedUpdate = s.version;
+      if (interruptions.notify(`Lumi ${s.version} is ${s.status === 'ready' ? 'ready' : 'available'}`, body)) notifiedUpdate = s.version;
     }
   });
   updates.start(() => getSettings().autoUpdate, {
@@ -257,15 +237,15 @@ async function bootstrap() {
     if (state.active && state.reason === 'fullscreen' && getSettings().dndHideWidget && win?.isVisible()) { win.hide(); hiddenByDnd = true; }
     if (!state.active && hiddenByDnd) { hiddenByDnd = false; win?.showInactive(); }
     // Back to normal: tell her about anything that came due in the meantime.
-    if (was.active && !state.active && !focus.current) releaseHeldReminders();
+    if (was.active && !state.active) interruptions.quietChanged();
   });
   dnd.start();
 
   // ---- routines: daily jobs that put new articles in the News tab ----
   routines.on('changed', () => { send('routines:updated', routines.list()); send('news:updated', routines.news()); });
   routines.on('news', (items: { title: string; summary?: string; body?: string }[], routine: { name: string }) => {
-    if (getSettings().calendarPopupsOnly) return; // still in the News tab, just no pop-up
-    notify(items[0]?.body ? routine.name : `${items.length} new in “${routine.name}”`, items.slice(0, 3).map((i) => `• ${i.body ? i.summary ?? i.title : i.title}`).join('\n'), () => { const w = getWindow(); w?.show(); w?.focus(); });
+    // In "calendar pop-ups only" mode there is no pop-up; the items are still in the News tab.
+    interruptions.notify(items[0]?.body ? routine.name : `${items.length} new in “${routine.name}”`, items.slice(0, 3).map((i) => `• ${i.body ? i.summary ?? i.title : i.title}`).join('\n'), { chatter: true, onClick: showWindow });
   });
   routines.start();
 
@@ -275,7 +255,7 @@ async function bootstrap() {
 
   // ---- quick capture shortcut ----
   const shortcut = quick.apply(getSettings().quickCapture, getSettings().quickCaptureShortcut);
-  if (!shortcut.ok) notify('Quick capture is not available', shortcut.error ?? 'Choose another shortcut in Settings → Quick capture.');
+  if (!shortcut.ok) interruptions.notify('Quick capture is not available', shortcut.error ?? 'Choose another shortcut in Settings → Quick capture.');
 
   // ---- tell the window when nobody can see her, so her animation loop stops ----
   // (The window keeps running in the background on purpose, so the page cannot tell by itself that it is hidden.)

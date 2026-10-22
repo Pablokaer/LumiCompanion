@@ -333,7 +333,7 @@ electron/              Main process (Node)
   voice/               transcribe.ts (local Whisper speech-to-text)
   updater.ts           Update service: electron-updater for Windows/AppImage, macUpdate.ts for macOS, release-page check elsewhere
   macUpdate.ts         macOS self-update: feed parsing, verified download, in-place swap script
-  services/            sync.ts (polling), reminders.ts, emailScoring.ts, routines.ts (scheduler for the routines), time.ts, briefing.ts, focus.ts, dnd.ts (do-not-disturb + Windows full-screen probe via koffi), weather.ts (Open-Meteo + location)
+  services/            interruptions.ts (the one place that decides whether a reminder, notification or peek shows now, waits or is dropped: quiet mode, focus, calendar-only), sync.ts (polling), reminders.ts, emailScoring.ts, routines.ts (scheduler for the routines), time.ts, briefing.ts, focus.ts, dnd.ts (do-not-disturb + Windows full-screen probe via koffi), weather.ts (Open-Meteo + location)
   routines/            feeds.ts (RSS/Atom parsing, feed discovery, Google News and Hacker News searches), runner.ts (one run: new items, AI pick and summary, or the report of an instructions routine)
   quickCapture.ts      Global shortcut and the small quick-capture window
 shared/types.ts        Types shared by main + renderer

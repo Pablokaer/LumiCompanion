@@ -6,7 +6,7 @@ import { reviewAnswer, applyCitations, type ParsedAssignment } from '../electron
 import type { Source } from '../electron/docs/sources';
 import { buildRawMessage, extractBody, htmlToText, type FullEmail } from '../electron/google/gmail';
 import { briefingDate, buildBriefing, shouldShowBriefing } from '../electron/services/briefing';
-import { FocusService, shouldHoldReminder } from '../electron/services/focus';
+import { FocusService } from '../electron/services/focus';
 import { skinVars } from '../src/appearance';
 import { transcribe } from '../electron/voice/transcribe';
 import { DEFAULT_SETTINGS } from '../shared/settings';
@@ -121,12 +121,6 @@ describe('focus timer', () => {
     vi.advanceTimersByTime(200 * 60_000);
     expect(done).not.toHaveBeenCalled();
     expect(focus.start(0).minutes).toBe(25);
-  });
-
-  it('only holds back reminders that are not urgent', () => {
-    expect(shouldHoldReminder(true, 15)).toBe(true);
-    expect(shouldHoldReminder(true, 5)).toBe(false);
-    expect(shouldHoldReminder(false, 15)).toBe(false);
   });
 });
 
