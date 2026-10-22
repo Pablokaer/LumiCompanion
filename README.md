@@ -320,12 +320,15 @@ For development, the feed can be pointed at a local server with the `LUMI_UPDATE
 
 **Adding a setting:** add it to `Settings` in `shared/types.ts` and its default to `DEFAULT_SETTINGS` in `shared/settings.ts` (plus a check there unless it is a boolean; a test fails if a default does not pass its own check). If changing it must do something right away, add a line to the `onSettingsChanged` listener in `electron/main.ts`; that listener runs for every saved change, whether it came from the panel, the tray or the app itself. The browser mock and the test fixtures start from `DEFAULT_SETTINGS`, so they need no edit.
 
+**Adding an IPC call:** add the method to `LumiApi` in `shared/types.ts`; its channel is `group:method` (`updates` uses `update:`). Then expose it in `electron/preload.ts` with `invoke('group:method', …)`, register it in `electron/main.ts` with `handle('group:method', …)` and add it to the mock in `src/api.ts`. The compiler checks the channel names and the handler's arguments and result against `LumiApi`, and `tests/ipcContract.test.ts` fails if the preload exposes a call that main.ts does not handle. For a push event, add it to `LumiEvents` (its payload type); the preload's allow-list, main's `send` and the renderer's `api.on` are all typed by it.
+
 ```
 electron/              Main process (Node)
   main.ts              App bootstrap, IPC handlers, notifications, global shortcut
   window.ts            Widget window: compact/expanded, size per widget view, desktop vs on-top, peek
   tray.ts              Tray / menu-bar icon and menu
   preload.ts           Secure bridge → window.lumi (contextIsolation + sandbox)
+  ipc.ts               Typed `handle` (invoke channels) and `sendEvent` (push events) for the IPC contract in shared/types.ts
   store.ts             Saves settings (and tells onSettingsChanged listeners), encrypted tokens, OAuth client config
   google/              auth.ts (OAuth PKCE), calendar.ts (incl. month ranges), gmail.ts (incl. full messages and drafts)
   docs/                assignment.ts (answer pipeline), extract.ts (docx/pdf/txt), sources.ts (OpenAlex + citations), googleDocs.ts

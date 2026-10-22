@@ -1,99 +1,108 @@
 // Runs in a sandboxed preload: only `electron` may be required here, so channel
-// names are inlined and shared types are imported as types only.
+// names are inlined and shared types are imported as types only. The types still
+// check them: a channel missing from IpcChannels or LumiEvents does not compile.
 import { contextBridge, ipcRenderer } from 'electron';
-import type { LumiApi } from '../shared/types';
+import type { IpcCall, IpcChannel, LumiApi, LumiEvent } from '../shared/types';
 
-const EVENTS = new Set(['reminder', 'data:updated', 'agent:confirm', 'agent:status', 'auth:changed', 'settings:changed', 'focus:changed', 'briefing', 'activity', 'update:state', 'cursor', 'dnd:state', 'weather:state', 'system', 'power', 'quick:show', 'ollama:setup', 'routines:updated', 'news:updated', 'ai:state']);
+// Every event must be listed (a Record over all of LumiEvents' keys), and nothing else.
+const EVENT_NAMES: Record<LumiEvent, true> = {
+  reminder: true, 'data:updated': true, 'agent:confirm': true, 'agent:status': true, 'auth:changed': true, 'settings:changed': true,
+  'focus:changed': true, briefing: true, activity: true, 'update:state': true, cursor: true, 'dnd:state': true, 'weather:state': true,
+  system: true, power: true, 'quick:show': true, 'ollama:setup': true, 'routines:updated': true, 'news:updated': true, 'ai:state': true,
+};
+const EVENTS = new Set<string>(Object.keys(EVENT_NAMES));
+
+const invoke = <K extends IpcChannel>(channel: K, ...args: IpcCall<K>['args']) => ipcRenderer.invoke(channel, ...args) as IpcCall<K>['result'];
 
 const api: LumiApi = {
   auth: {
-    getState: () => ipcRenderer.invoke('auth:getState'),
-    signIn: () => ipcRenderer.invoke('auth:signIn'),
-    signOut: () => ipcRenderer.invoke('auth:signOut'),
+    getState: () => invoke('auth:getState'),
+    signIn: () => invoke('auth:signIn'),
+    signOut: () => invoke('auth:signOut'),
   },
   data: {
-    get: () => ipcRenderer.invoke('data:get'),
-    refresh: () => ipcRenderer.invoke('data:refresh'),
-    createEvent: (input) => ipcRenderer.invoke('data:createEvent', input),
-    getRange: (fromIso, toIso) => ipcRenderer.invoke('data:getRange', fromIso, toIso),
+    get: () => invoke('data:get'),
+    refresh: () => invoke('data:refresh'),
+    createEvent: (input) => invoke('data:createEvent', input),
+    getRange: (fromIso, toIso) => invoke('data:getRange', fromIso, toIso),
   },
   agent: {
-    send: (history) => ipcRenderer.invoke('agent:send', history),
-    respondConfirm: (id, approved) => ipcRenderer.invoke('agent:respondConfirm', id, approved),
-    ollamaStatus: () => ipcRenderer.invoke('agent:ollamaStatus'),
-    setupOllama: () => ipcRenderer.invoke('agent:setupOllama'),
-    setupState: () => ipcRenderer.invoke('agent:setupState'),
-    startAi: () => ipcRenderer.invoke('agent:startAi'),
-    stopAi: () => ipcRenderer.invoke('agent:stopAi'),
+    send: (history) => invoke('agent:send', history),
+    respondConfirm: (id, approved) => invoke('agent:respondConfirm', id, approved),
+    ollamaStatus: () => invoke('agent:ollamaStatus'),
+    setupOllama: () => invoke('agent:setupOllama'),
+    setupState: () => invoke('agent:setupState'),
+    startAi: () => invoke('agent:startAi'),
+    stopAi: () => invoke('agent:stopAi'),
   },
   focus: {
-    get: () => ipcRenderer.invoke('focus:get'),
-    start: (minutes) => ipcRenderer.invoke('focus:start', minutes),
-    stop: () => ipcRenderer.invoke('focus:stop'),
+    get: () => invoke('focus:get'),
+    start: (minutes) => invoke('focus:start', minutes),
+    stop: () => invoke('focus:stop'),
   },
   dnd: {
-    get: () => ipcRenderer.invoke('dnd:get'),
-    set: (untilMs) => ipcRenderer.invoke('dnd:set', untilMs),
+    get: () => invoke('dnd:get'),
+    set: (untilMs) => invoke('dnd:set', untilMs),
   },
   weather: {
-    get: () => ipcRenderer.invoke('weather:get'),
-    refresh: () => ipcRenderer.invoke('weather:refresh'),
+    get: () => invoke('weather:get'),
+    refresh: () => invoke('weather:refresh'),
   },
   capture: {
-    parse: (text) => ipcRenderer.invoke('capture:parse', text),
-    close: () => ipcRenderer.invoke('capture:close'),
-    setShortcut: (accelerator) => ipcRenderer.invoke('capture:setShortcut', accelerator),
+    parse: (text) => invoke('capture:parse', text),
+    close: () => invoke('capture:close'),
+    setShortcut: (accelerator) => invoke('capture:setShortcut', accelerator),
   },
   updates: {
-    getState: () => ipcRenderer.invoke('update:getState'),
-    check: () => ipcRenderer.invoke('update:check'),
-    download: () => ipcRenderer.invoke('update:download'),
-    install: () => ipcRenderer.invoke('update:install'),
-    openDownload: () => ipcRenderer.invoke('update:openDownload'),
+    getState: () => invoke('update:getState'),
+    check: () => invoke('update:check'),
+    download: () => invoke('update:download'),
+    install: () => invoke('update:install'),
+    openDownload: () => invoke('update:openDownload'),
   },
   music: {
-    requestStart: () => ipcRenderer.invoke('music:requestStart'),
+    requestStart: () => invoke('music:requestStart'),
   },
   briefing: {
-    show: () => ipcRenderer.invoke('briefing:show'),
+    show: () => invoke('briefing:show'),
   },
   mail: {
-    draftReply: (emailId, instructions) => ipcRenderer.invoke('mail:draftReply', emailId, instructions),
-    saveDraft: (draft) => ipcRenderer.invoke('mail:saveDraft', draft),
-    suggestEvent: (emailId) => ipcRenderer.invoke('mail:suggestEvent', emailId),
+    draftReply: (emailId, instructions) => invoke('mail:draftReply', emailId, instructions),
+    saveDraft: (draft) => invoke('mail:saveDraft', draft),
+    suggestEvent: (emailId) => invoke('mail:suggestEvent', emailId),
   },
   voice: {
-    transcribe: (samples) => ipcRenderer.invoke('voice:transcribe', samples),
+    transcribe: (samples) => invoke('voice:transcribe', samples),
   },
   docs: {
-    pickFile: () => ipcRenderer.invoke('docs:pickFile'),
-    answerFile: (path) => ipcRenderer.invoke('docs:answerFile', path),
+    pickFile: () => invoke('docs:pickFile'),
+    answerFile: (path) => invoke('docs:answerFile', path),
   },
   routines: {
-    list: () => ipcRenderer.invoke('routines:list'),
-    save: (input) => ipcRenderer.invoke('routines:save', input),
-    remove: (id) => ipcRenderer.invoke('routines:remove', id),
-    run: (id) => ipcRenderer.invoke('routines:run', id),
+    list: () => invoke('routines:list'),
+    save: (input) => invoke('routines:save', input),
+    remove: (id) => invoke('routines:remove', id),
+    run: (id) => invoke('routines:run', id),
   },
   news: {
-    list: () => ipcRenderer.invoke('news:list'),
-    open: (id) => ipcRenderer.invoke('news:open', id),
-    markRead: (id) => ipcRenderer.invoke('news:markRead', id),
-    dismiss: (id) => ipcRenderer.invoke('news:dismiss', id),
-    clearRead: () => ipcRenderer.invoke('news:clearRead'),
+    list: () => invoke('news:list'),
+    open: (id) => invoke('news:open', id),
+    markRead: (id) => invoke('news:markRead', id),
+    dismiss: (id) => invoke('news:dismiss', id),
+    clearRead: () => invoke('news:clearRead'),
   },
   settings: {
-    get: () => ipcRenderer.invoke('settings:get'),
-    update: (patch) => ipcRenderer.invoke('settings:update', patch),
+    get: () => invoke('settings:get'),
+    update: (patch) => invoke('settings:update', patch),
   },
   window: {
-    setMode: (mode) => ipcRenderer.invoke('window:setMode', mode),
-    hide: () => ipcRenderer.invoke('window:hide'),
-    openExternal: (url) => ipcRenderer.invoke('window:openExternal', url),
+    setMode: (mode) => invoke('window:setMode', mode),
+    hide: () => invoke('window:hide'),
+    openExternal: (url) => invoke('window:openExternal', url),
   },
   on(channel, listener) {
     if (!EVENTS.has(channel)) throw new Error(`Unknown channel ${channel}`);
-    const handler = (_e: Electron.IpcRendererEvent, payload: unknown) => listener(payload);
+    const handler = (_e: Electron.IpcRendererEvent, payload: unknown) => listener(payload as never);
     ipcRenderer.on(channel, handler);
     return () => { ipcRenderer.removeListener(channel, handler); };
   },

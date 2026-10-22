@@ -2,7 +2,7 @@ import type { DndState } from '../shared/dnd';
 import { isUnderstood, parseQuickEvent, toEventInput } from '../shared/quickParse';
 import { buildRoutine, type NewsItem, type Routine } from '../shared/routines';
 import type {
-  AuthState, CalendarEvent, CaptureResult, ChatMessage, DataSnapshot, FocusState, LumiApi, NewEventInput, ScoredEmail, Settings, UpdateState,
+  AuthState, CalendarEvent, CaptureResult, ChatMessage, DataSnapshot, FocusState, LumiApi, LumiEvent, LumiEvents, NewEventInput, ScoredEmail, Settings, UpdateState,
 } from '../shared/types';
 import type { WeatherCondition, WeatherState } from '../shared/weather';
 import { DEFAULT_SETTINGS } from '../shared/settings';
@@ -21,7 +21,7 @@ export const isMock = !window.lumi;
 
 function createMockApi(): LumiApi {
   const listeners = new Map<string, Set<(p: any) => void>>();
-  const emit = (ch: string, p: unknown) => listeners.get(ch)?.forEach((l) => l(p));
+  const emit = <K extends LumiEvent>(ch: K, p: LumiEvents[K]) => listeners.get(ch)?.forEach((l) => l(p));
   const at = (dayOffset: number, h: number, m = 0) => {
     const d = new Date(); d.setDate(d.getDate() + dayOffset); d.setHours(h, m, 0, 0); return d.toISOString();
   };
@@ -262,7 +262,8 @@ function createMockApi(): LumiApi {
       hide: async () => undefined,
       openExternal: async (url) => { window.open(url, '_blank'); },
     },
-    on(channel, listener) {
+    on(channel, typed) {
+      const listener = typed as (p: unknown) => void; // the mock fakes payloads per channel below
       if (!listeners.has(channel)) listeners.set(channel, new Set());
       listeners.get(channel)!.add(listener);
       if (channel === 'system' && params.get('system')) {

@@ -1,10 +1,12 @@
-import { app, desktopCapturer, dialog, globalShortcut, ipcMain, Notification, powerMonitor, screen, session, shell } from 'electron';
+import { app, desktopCapturer, dialog, globalShortcut, Notification, powerMonitor, screen, session, shell } from 'electron';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import type {
-  AgentStatus, AssignmentResult, CaptureResult, ChatMessage, ConfirmRequest, EmailDraft, NewEventInput, PickedFile, ReminderPayload, Settings, WindowMode,
+  AgentStatus, AssignmentResult, CaptureResult, ChatMessage, ConfirmRequest, EmailDraft, LumiEvent, LumiEvents, NewEventInput, PickedFile, ReminderPayload, Settings, WindowMode,
 } from '../shared/types';
+import { handle, sendEvent } from './ipc';
 import { isAllowedExternalUrl } from '../shared/meeting';
+import type { SystemKind } from '../shared/notices';
 import type { RoutineInput } from '../shared/routines';
 import { isUnderstood, parseQuickEvent, toEventInput } from '../shared/quickParse';
 import { weatherSummary } from '../shared/weather';
@@ -123,7 +125,7 @@ function checkBriefing() {
   showBriefing(true);
 }
 
-const send = (channel: string, payload?: unknown) => getWindow()?.webContents.send(channel, payload);
+const send = <K extends LumiEvent>(channel: K, ...payload: LumiEvents[K] extends undefined ? [] : [LumiEvents[K]]) => sendEvent(getWindow()?.webContents, channel, ...payload);
 
 function applySystemSettings(s: Settings = getSettings()) {
   if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: s.launchAtLogin });
@@ -271,7 +273,7 @@ async function bootstrap() {
   powerMonitor.on('resume', setLocked(false));
 
   // ---- system events the star can react to (lock, unlock, sleep, wake, plugging in) ----
-  const systemEvent = (kind: string) => () => { if (getSettings().reactToSystem) send('system', { kind }); };
+  const systemEvent = (kind: SystemKind) => () => { if (getSettings().reactToSystem) send('system', { kind }); };
   powerMonitor.on('lock-screen', systemEvent('lock-screen'));
   powerMonitor.on('unlock-screen', systemEvent('unlock-screen'));
   powerMonitor.on('suspend', systemEvent('suspend'));
@@ -311,26 +313,26 @@ function agentDeps(): AgentDeps {
 
 function registerIpc() {
   // --- Auth ---
-  ipcMain.handle('auth:getState', () => getAuthState());
-  ipcMain.handle('auth:signIn', async () => {
+  handle('auth:getState', () => getAuthState());
+  handle('auth:signIn', async () => {
     const state = await signIn();
     getWindow()?.show();
     getWindow()?.focus();
     if (state.signedIn) sync.start();
     return state;
   });
-  ipcMain.handle('auth:signOut', async () => { sync.reset(); return signOut(); });
+  handle('auth:signOut', async () => { sync.reset(); return signOut(); });
 
   // --- Data ---
-  ipcMain.handle('data:get', () => sync.data);
-  ipcMain.handle('data:refresh', () => sync.refreshAll());
-  ipcMain.handle('data:createEvent', async (_e, input: NewEventInput) => {
+  handle('data:get', () => sync.data);
+  handle('data:refresh', () => sync.refreshAll());
+  handle('data:createEvent', async (_e, input: NewEventInput) => {
     const created = await createEvent(input);
     void sync.refreshEvents();
     return created;
   });
 
-  ipcMain.handle('data:getRange', (_e, fromIso: string, toIso: string) => {
+  handle('data:getRange', (_e, fromIso: string, toIso: string) => {
     const from = new Date(fromIso);
     const to = new Date(toIso);
     if (Number.isNaN(+from) || Number.isNaN(+to) || to <= from) throw new Error('Invalid date range.');
@@ -339,33 +341,33 @@ function registerIpc() {
   });
 
   // --- Agent ---
-  ipcMain.handle('agent:setupOllama', () => ollamaSetup.ensure(getSettings().ollamaUrl, getSettings().ollamaModel));
-  ipcMain.handle('agent:setupState', () => ollamaSetup.current);
-  ipcMain.handle('agent:ollamaStatus', () => localAi.state());
-  ipcMain.handle('agent:startAi', () => localAi.start());
-  ipcMain.handle('agent:stopAi', () => localAi.stop());
-  ipcMain.handle('agent:respondConfirm', (_e, id: string, approved: boolean) => {
+  handle('agent:setupOllama', () => ollamaSetup.ensure(getSettings().ollamaUrl, getSettings().ollamaModel));
+  handle('agent:setupState', () => ollamaSetup.current);
+  handle('agent:ollamaStatus', () => localAi.state());
+  handle('agent:startAi', () => localAi.start());
+  handle('agent:stopAi', () => localAi.stop());
+  handle('agent:respondConfirm', (_e, id: string, approved: boolean) => {
     pendingConfirms.get(id)?.(approved);
     pendingConfirms.delete(id);
   });
-  ipcMain.handle('agent:send', async (_e, history: ChatMessage[]) => {
+  handle('agent:send', async (_e, history: ChatMessage[]) => {
     await localAi.require();
     return runAgent(history, agentDeps());
   });
 
   // --- Do not disturb ---
-  ipcMain.handle('dnd:get', () => dnd.state);
-  ipcMain.handle('dnd:set', (_e, untilMs: number | null) => {
+  handle('dnd:get', () => dnd.state);
+  handle('dnd:set', (_e, untilMs: number | null) => {
     dnd.setManual(typeof untilMs === 'number' && Number.isFinite(untilMs) && untilMs > Date.now() ? untilMs : null);
     return dnd.state;
   });
 
   // --- Weather ---
-  ipcMain.handle('weather:get', () => weather.state);
-  ipcMain.handle('weather:refresh', () => weather.refresh());
+  handle('weather:get', () => weather.state);
+  handle('weather:refresh', () => weather.refresh());
 
   // --- Quick capture ---
-  ipcMain.handle('capture:parse', async (_e, text: string): Promise<CaptureResult> => {
+  handle('capture:parse', async (_e, text: string): Promise<CaptureResult> => {
     const input = String(text ?? '').slice(0, 300).trim();
     if (!input) return { event: { title: '', start: '' }, understood: false, via: 'none' };
     const parsed = parseQuickEvent(input);
@@ -379,8 +381,8 @@ function registerIpc() {
     } catch { /* fall through to the plain form */ }
     return { event: { title: parsed.title, start: '' }, understood: false, via: 'none' };
   });
-  ipcMain.handle('capture:close', () => quick.hide());
-  ipcMain.handle('capture:setShortcut', (_e, accelerator: string) => {
+  handle('capture:close', () => quick.hide());
+  handle('capture:setShortcut', (_e, accelerator: string) => {
     const result = quick.apply(true, String(accelerator ?? ''));
     if (result.ok) updateSettings({ quickCapture: true, quickCaptureShortcut: String(accelerator).trim() });
     else quick.apply(getSettings().quickCapture, getSettings().quickCaptureShortcut); // put the previous shortcut back
@@ -388,14 +390,14 @@ function registerIpc() {
   });
 
   // --- Updates ---
-  ipcMain.handle('update:getState', () => updates.current);
-  ipcMain.handle('update:check', () => updates.check(true));
-  ipcMain.handle('update:download', () => updates.download());
-  ipcMain.handle('update:install', () => updates.install());
-  ipcMain.handle('update:openDownload', () => shell.openExternal(RELEASES_PAGE));
+  handle('update:getState', () => updates.current);
+  handle('update:check', () => updates.check(true));
+  handle('update:download', () => updates.download());
+  handle('update:install', () => updates.install());
+  handle('update:openDownload', () => shell.openExternal(RELEASES_PAGE));
 
   // --- Music detection ---
-  ipcMain.handle('music:requestStart', () => {
+  handle('music:requestStart', () => {
     if (!getSettings().reactToMusic) return;
     // `true` simulates a user gesture, which Chromium requires for getDisplayMedia.
     return getWindow()?.webContents
@@ -404,36 +406,36 @@ function registerIpc() {
   });
 
   // --- Focus timer ---
-  ipcMain.handle('focus:get', () => focus.current);
-  ipcMain.handle('focus:start', (_e, minutes: number) => focus.start(minutes));
-  ipcMain.handle('focus:stop', () => focus.stop());
+  handle('focus:get', () => focus.current);
+  handle('focus:start', (_e, minutes: number) => focus.start(minutes));
+  handle('focus:stop', () => focus.stop());
 
   // --- Morning briefing ---
-  ipcMain.handle('briefing:show', () => showBriefing(false));
+  handle('briefing:show', () => showBriefing(false));
 
   // --- Mail helpers: draft a reply, turn an email into an event ---
   const EMAIL_ADDRESS = /^[^\s<>@,;]+@[^\s<>@,;]+$/;
-  ipcMain.handle('mail:draftReply', async (_e, emailId: string, instructions?: string): Promise<EmailDraft> => {
+  handle('mail:draftReply', async (_e, emailId: string, instructions?: string): Promise<EmailDraft> => {
     await localAi.start(); // an explicit AI action turns the AI on
     await localAi.require();
     const [email, profile] = await Promise.all([getFullEmail(String(emailId)), getProfile().catch(() => undefined)]);
     return draftReply(email, instructions ? String(instructions).slice(0, 1000) : undefined, profile?.name, getSettings());
   });
-  ipcMain.handle('mail:saveDraft', async (_e, draft: EmailDraft) => {
+  handle('mail:saveDraft', async (_e, draft: EmailDraft) => {
     if (!hasScope('gmail.compose')) throw new Error('Lumi needs permission to save Gmail drafts. Sign out in Settings and sign in again, then accept the new access.');
     if (!EMAIL_ADDRESS.test(String(draft?.to ?? '').trim())) throw new Error('The recipient is not a valid email address.');
     if (!String(draft.body ?? '').trim()) throw new Error('The draft is empty.');
     await createDraft({ ...draft, to: draft.to.trim() });
     return { url: 'https://mail.google.com/mail/u/0/#drafts' };
   });
-  ipcMain.handle('mail:suggestEvent', async (_e, emailId: string) => {
+  handle('mail:suggestEvent', async (_e, emailId: string) => {
     await localAi.start(); // an explicit AI action turns the AI on
     await localAi.require();
     return suggestEventFromEmail(await getFullEmail(String(emailId)), getSettings());
   });
 
   // --- Voice input (local Whisper) ---
-  ipcMain.handle('voice:transcribe', async (_e, samples: Float32Array) => {
+  handle('voice:transcribe', async (_e, samples: Float32Array) => {
     if (!(samples instanceof Float32Array)) throw new Error('Invalid audio.');
     const pref = getSettings().voiceLanguage;
     const code = pref === 'system' ? app.getLocale().slice(0, 2).toLowerCase() : pref;
@@ -446,7 +448,7 @@ function registerIpc() {
   });
 
   // --- Documents (answer an assignment file into a Google Doc) ---
-  ipcMain.handle('docs:pickFile', async (): Promise<PickedFile | undefined> => {
+  handle('docs:pickFile', async (): Promise<PickedFile | undefined> => {
     const win = getWindow();
     const opts: Electron.OpenDialogOptions = {
       title: 'Choose a document with questions',
@@ -458,7 +460,7 @@ function registerIpc() {
     pickedFiles.add(filePaths[0]);
     return { path: filePaths[0], name: path.basename(filePaths[0]) };
   });
-  ipcMain.handle('docs:answerFile', async (_e, file: string): Promise<AssignmentResult> => {
+  handle('docs:answerFile', async (_e, file: string): Promise<AssignmentResult> => {
     // Only files the user chose in the picker may be read.
     if (!pickedFiles.has(file)) throw new Error('Please choose the file again.');
     if (!hasScope('documents')) throw new Error('Lumi needs Google Docs permission. Sign out in Settings and sign in again, then accept the Docs access.');
@@ -471,30 +473,30 @@ function registerIpc() {
   });
 
   // --- Routines and news ---
-  ipcMain.handle('routines:list', () => routines.list());
-  ipcMain.handle('routines:save', (_e, input: RoutineInput) => routines.save(input ?? {}));
-  ipcMain.handle('routines:remove', (_e, id: string) => routines.remove(String(id)));
-  ipcMain.handle('routines:run', (_e, id: string) => routines.run(String(id)));
-  ipcMain.handle('news:list', () => routines.news());
-  ipcMain.handle('news:open', (_e, id: string) => {
+  handle('routines:list', () => routines.list());
+  handle('routines:save', (_e, input: RoutineInput) => routines.save(input ?? {}));
+  handle('routines:remove', (_e, id: string) => routines.remove(String(id)));
+  handle('routines:run', (_e, id: string) => routines.run(String(id)));
+  handle('news:list', () => routines.news());
+  handle('news:open', (_e, id: string) => {
     // Only an address that a routine found (and that is http or https) can be opened.
     const item = routines.news().find((n) => n.id === id);
     if (!item || !/^https?:\/\//i.test(item.url)) return;
     routines.markRead(item.id);
     return shell.openExternal(item.url);
   });
-  ipcMain.handle('news:markRead', (_e, id?: string) => routines.markRead(id ? String(id) : undefined));
-  ipcMain.handle('news:dismiss', (_e, id: string) => routines.dismiss(String(id)));
-  ipcMain.handle('news:clearRead', () => routines.clearRead());
+  handle('news:markRead', (_e, id?: string) => routines.markRead(id ? String(id) : undefined));
+  handle('news:dismiss', (_e, id: string) => routines.dismiss(String(id)));
+  handle('news:clearRead', () => routines.clearRead());
 
   // --- Settings ---
-  ipcMain.handle('settings:get', () => getSettings());
-  ipcMain.handle('settings:update', (_e, patch: Partial<Settings>) => updateSettings(patch)); // side effects: onSettingsChanged in bootstrap
+  handle('settings:get', () => getSettings());
+  handle('settings:update', (_e, patch: Partial<Settings>) => updateSettings(patch)); // side effects: onSettingsChanged in bootstrap
 
   // --- Window ---
-  ipcMain.handle('window:setMode', (_e, mode: WindowMode) => setWindowMode(mode));
-  ipcMain.handle('window:hide', () => getWindow()?.hide());
-  ipcMain.handle('window:openExternal', (_e, url: string) => {
+  handle('window:setMode', (_e, mode: WindowMode) => setWindowMode(mode));
+  handle('window:hide', () => getWindow()?.hide());
+  handle('window:openExternal', (_e, url: string) => {
     // Only Google pages and video-meeting services, over https, may be opened from the interface.
     if (isAllowedExternalUrl(String(url))) return shell.openExternal(url);
   });
