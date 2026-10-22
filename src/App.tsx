@@ -8,8 +8,6 @@ import { ambientFor, autoAccessories, seasonFor } from '../shared/weather';
 import { api, isMock } from './api';
 import { AppearanceProvider, skinVars } from './appearance';
 import { useDnd, useNoticeState, useSystemNotices, useTips, useWeather } from './automation';
-import { ACTION_LINE_GAP_MS, ACTION_LINES } from './behavior';
-import { calendarWindowMinutes } from '../shared/proactive';
 import { AmbientLayer } from './components/AmbientLayer';
 import { CalendarWidget } from './components/CalendarWidget';
 import { CompactView } from './components/CompactView';
@@ -20,7 +18,8 @@ import { Starfield } from './components/Starfield';
 import { moodFor } from './face';
 import { setPointer } from './gaze';
 import { setPower } from './power';
-import { fmtTime, greeting, nextEvent } from './format';
+import { nextEvent } from './format';
+import { ActionLineGate, speechFor } from './speech';
 import { LifeProvider, useMascotLife, useMusic } from './mascotLife';
 
 export interface ChatState {
@@ -149,41 +148,29 @@ export default function App() {
 
   // spontaneous actions come every few seconds: only some of them get a line
   const [actionLine, setActionLine] = useState<string>();
-  const lastActionLine = useRef(0);
-  useEffect(() => {
-    const line = ACTION_LINES[life.action];
-    if (!line) { setActionLine(undefined); return; }
-    if (Date.now() - lastActionLine.current < ACTION_LINE_GAP_MS) return;
-    lastActionLine.current = Date.now();
-    setActionLine(line);
-  }, [life.action, life.actionKey]);
+  const actionLines = useRef(new ActionLineGate());
+  useEffect(() => { setActionLine(actionLines.current.lineFor(life.action, Date.now())); }, [life.action, life.actionKey]);
 
   const name = settings?.mascotName ?? 'Lumi';
-  const nearWindow = calendarWindowMinutes(settings?.reminderLeadMinutes ?? []);
-  const speech = useMemo(() => {
-    const lines: string[] = [];
-    if (reminder) return [reminder.message];
-    if (calendarOnly) {
-      // nothing to say (no bubble) unless an event is about to start
-      return upcoming && minutesToNext >= 0 && minutesToNext <= nearWindow ? [`“${upcoming.title}” in ${minutesToNext} min ✦`] : [];
-    }
-    if (chat.status.state !== 'idle') return ['Thinking among the stars…'];
-    if (briefing) return [briefing.title, ...briefing.lines.slice(0, 5).map((l) => l.replace(/^•\s*/, ''))];
-    if (focus) return [`Focus time — ${Math.max(1, Math.ceil((focus.endsAt - Date.now()) / 60_000))} min left ✦`];
-    if (dnd.active) return ['🔕 Quiet mode — I will stay out of your way'];
-    if (notice) return [notice.line];
-    if (life.reactionLine) return [life.reactionLine];
-    if (life.sleeping) return ['Zzz… 💤'];
-    if (life.dancing) return [`♪ ${life.bpm} BPM — I love this one!`, 'Dance with me! ✦'];
-    if (actionLine) return [actionLine];
-    if (upcoming && minutesToNext <= 60) lines.push(`“${upcoming.title}” ${minutesToNext <= 0 ? 'is happening now' : `in ${minutesToNext} min`} ✦`);
-    else if (upcoming) lines.push(`Next up: ${upcoming.title} at ${fmtTime(upcoming.start)}`);
-    if (highEmails.length) lines.push(`${highEmails.length} important email${highEmails.length > 1 ? 's' : ''} waiting for you`);
-    const first = auth?.profile?.name;
-    lines.push(`${greeting(now)}${first ? `, ${first}` : ''}!`);
-    if (!upcoming) lines.push('Your sky is clear — no more events today 🌌');
-    return lines;
-  }, [reminder, calendarOnly, nearWindow, briefing, focus, dnd.active, notice, life.reactionLine, life.sleeping, life.dancing, life.bpm, actionLine, chat.status.state, upcoming, minutesToNext, highEmails.length, auth?.profile?.name, now]);
+  const speech = useMemo(() => speechFor({
+    now,
+    upcoming,
+    importantEmails: highEmails.length,
+    firstName: auth?.profile?.name,
+    calendarOnly,
+    reminderLeadMinutes: settings?.reminderLeadMinutes ?? [],
+    reminder: reminder?.message,
+    thinking: chat.status.state !== 'idle',
+    briefing,
+    focusEndsAt: focus?.endsAt,
+    dnd: dnd.active,
+    notice: notice?.line,
+    reactionLine: life.reactionLine,
+    sleeping: life.sleeping,
+    dancing: life.dancing,
+    bpm: life.bpm,
+    actionLine,
+  }), [now, upcoming, highEmails.length, auth?.profile?.name, calendarOnly, settings?.reminderLeadMinutes, reminder, chat.status.state, briefing, focus, dnd.active, notice, life.reactionLine, life.sleeping, life.dancing, life.bpm, actionLine]);
 
   const poke = () => setHappyUntil(Date.now() + 2500);
 

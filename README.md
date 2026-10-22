@@ -355,6 +355,7 @@ src/                   React renderer (space UI)
   Gallery.tsx          Browser-preview gallery of every shape and accessory (`?gallery=1`)
   behavior.ts          Pure logic for the star's spontaneous actions
   face.ts              Pure logic for her expression (eyes and mouth) and overall mood
+  speech.ts            What her speech bubble says (priority order, calendar-only mode) and how often an action gets a line
   interaction.ts       Pure state machine for her reactions to the mouse (giggle, purr, bite)
   gaze.ts              Pure controllers for where her eyes look (cursor following, wandering) and when she blinks
   dance.ts             Pure choreography: pose for a position in the beat
